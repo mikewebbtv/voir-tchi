@@ -9,7 +9,7 @@
 import { AppServer, AppSession, ViewType } from '@mentra/sdk';
 import { VoirTchiGame } from './game';
 import { parseVoiceCommand, getUnrecognizedResponse } from './voice';
-import { prerenderAllSprites } from './renderer';
+import { renderDisplay } from './renderer';
 
 // ─── Config ───
 
@@ -17,10 +17,6 @@ const PACKAGE_NAME = process.env.PACKAGE_NAME || 'org.voir.tchi';
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY || '';
 const PORT = parseInt(process.env.PORT || '3020');
 console.log(`[Config] PORT env=${process.env.PORT} using=${PORT}`);
-
-// ─── State ───
-
-let spriteCache: Record<string, string>;
 
 // ─── App Server ───
 
@@ -39,33 +35,19 @@ class VoirTchiServer extends AppServer {
 
     const game = new VoirTchiGame({
       onTick: (stats, state) => {
-        updateDashboard(session, stats, state);
+        refreshDisplay(session, game, state);
       },
       onDeath: () => {
-        session.layouts.showReferenceCard(
-          '💀 Michael-tchi has died',
-          'Say "revive" to bring him back!',
-          { durationMs: 30000 }
-        );
-        showBitmap(session, 'dead');
+        refreshDisplay(session, game, 'dead', 'R.I.P. Say REVIVE');
       },
       onLowStat: (stat, value) => {
-        const emoji = stat === 'hunger' ? '🍖' : stat === 'happiness' ? '😊' : '⚡';
-        const urgency = value < 15 ? 'URGENT' : 'Warning';
-        session.layouts.showTextWall(
-          `${urgency}: ${emoji} ${stat} is at ${value}%!`,
-          { durationMs: 8000 }
-        );
+        refreshDisplay(session, game, game.getStats().state, `${stat} LOW: ${value}%!`);
       },
     });
 
-    // Show welcome then character
-    session.layouts.showTextWall('🐣 Voir-tchi\nSay: feed, play, coffee, work, sleep, love', { durationMs: 5000 });
-
-    const initialState = game.getStats();
-    showBitmap(session, initialState.state);
-    updateDashboard(session, game.stats, initialState.state);
-
+    // Initial display
+    const init = game.getStats();
+    refreshDisplay(session, game, init.state, 'Say FEED, PLAY, COFFEE...');
     game.start();
 
     // Voice commands
@@ -98,63 +80,33 @@ class VoirTchiServer extends AppServer {
   }
 }
 
-// ─── Display Helpers ───
+// ─── Display ───
 
-function showBitmap(session: AppSession, state: string): void {
-  const bmp = spriteCache[state] || spriteCache.happy;
-  if (bmp) {
-    try {
-      session.layouts.showBitmapView(bmp);
-    } catch (e: any) {
-      console.error(`[Voir-tchi] Bitmap display error:`, e?.message);
-      // Fallback to text
-      showCharacterText(session, state);
-    }
-  } else {
-    showCharacterText(session, state);
-  }
-}
-
-function showCharacterText(session: AppSession, state: string): void {
-  const emojis: Record<string, string> = {
-    happy: '😊', hungry: '😰', sad: '😢', tired: '😫',
-    working: '💻', creative: '💡', dead: '💀',
-  };
-  const emoji = emojis[state] || '😊';
-  session.layouts.showDoubleTextWall(
-    `${emoji} Michael-tchi`,
-    `Mood: ${state}`
-  );
-}
-
-function showActionResult(session: AppSession, result: any): void {
-  const { state, dialogue, action } = result;
-
-  // Show pixel art character
-  showBitmap(session, state);
-
-  // Show dialogue as text overlay (replaces bitmap after brief moment)
-  if (action === 'status') {
-    // Show full stats text after bitmap
-    setTimeout(() => {
-      session.layouts.showTextWall(dialogue, { durationMs: 6000 });
-    }, 1500);
-  } else if (state === 'dead') {
-    session.layouts.showReferenceCard(
-      '💀 R.I.P. Michael-tchi',
-      `${dialogue}\n\nSay "revive" to bring him back`,
-      { durationMs: 30000 }
+function refreshDisplay(session: AppSession, game: VoirTchiGame, state: string, dialogue?: string): void {
+  const stats = game.stats;
+  try {
+    const bmp = renderDisplay(state, stats, dialogue);
+    session.layouts.showBitmapView(bmp);
+  } catch (e: any) {
+    console.error(`[Voir-tchi] Bitmap error:`, e?.message);
+    // Fallback to text
+    session.layouts.showDoubleTextWall(
+      `${state} Michael-tchi`,
+      `H${stats.hunger} P${stats.happiness} E${stats.energy} C${stats.creativity}`
     );
-  } else {
-    // Brief bitmap, then dialogue
-    setTimeout(() => {
-      session.layouts.showDoubleTextWall(
-        dialogue,
-        `Mood: ${state}`
-      );
-    }, 1500);
+  }
+
+  // Dashboard (persistent bottom area)
+  try {
+    session.dashboard.content.writeToMain(
+      `🍖${stats.hunger} 😊${stats.happiness} ⚡${stats.energy} 🎨${stats.creativity}`
+    );
+  } catch (e: any) {
+    // Dashboard is optional, don't crash
   }
 }
+
+// ─── Command Handler ───
 
 function handleCommand(session: AppSession, game: VoirTchiGame, text: string): void {
   const action = parseVoiceCommand(text);
@@ -164,39 +116,29 @@ function handleCommand(session: AppSession, game: VoirTchiGame, text: string): v
     const lower = text.toLowerCase();
     if (validActions.includes(lower)) {
       const result = game.doAction(lower as any);
-      showActionResult(session, result);
+      showActionResult(session, game, result);
       return;
     }
-    session.layouts.showTextWall(getUnrecognizedResponse(text), { durationMs: 5000 });
+    refreshDisplay(session, game, game.getStats().state, `Unknown: "${text}"`);
     return;
   }
 
   const result = game.doAction(action);
-  showActionResult(session, result);
+  showActionResult(session, game, result);
 }
 
-function updateDashboard(session: AppSession, stats: any, state: string): void {
-  const emoji = state === 'dead' ? '💀' : state === 'hungry' ? '😰' : state === 'tired' ? '😫' : state === 'sad' ? '😢' : '😊';
-
-  try {
-    session.dashboard.content.writeToMain(
-      `${emoji} 🍖${stats.hunger} 😊${stats.happiness} ⚡${stats.energy} 🎨${stats.creativity}`
-    );
-  } catch (e: any) {
-    console.error(`[Voir-tchi] Dashboard error:`, e?.message);
-  }
+function showActionResult(session: AppSession, game: VoirTchiGame, result: any): void {
+  const { state, dialogue } = result;
+  // Show dialogue line at bottom of display
+  refreshDisplay(session, game, state, dialogue);
 }
 
 // ─── Main ───
 
 async function main() {
-  console.log('Voir-tchi v0.1.0 — Tamagotchi for Smart Glasses');
+  console.log('Voir-tchi v0.2.0 — Tamagotchi for Smart Glasses');
   console.log(`  Package: ${PACKAGE_NAME}`);
   console.log(`  Port: ${PORT}`);
-
-  console.log('  Pre-rendering sprites...');
-  spriteCache = prerenderAllSprites();
-  console.log(`  Cached ${Object.keys(spriteCache).length} sprites`);
 
   const server = new VoirTchiServer();
   await server.start();
