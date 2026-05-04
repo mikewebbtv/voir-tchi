@@ -146,10 +146,10 @@ export function renderDisplay(
   const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
 
-  // ═══ COL 1: Character (left, ~95px) ═══
-  const CHAR_SCALE = 5;
-  const CHAR_X = 3;
-  const CHAR_Y = 2;
+  // ═══ COL 1: Character (left, compact) ═══
+  const CHAR_SCALE = 4;
+  const CHAR_X = 2;
+  const CHAR_Y = 5;
 
   for (const [sx, sy] of allPixels) {
     if (sx < 0 || sy < 0) continue;
@@ -166,32 +166,58 @@ export function renderDisplay(
 
   // Mood label is now in COL2, not under character
 
-  // ═══ COL 2: Action buttons (middle) ═══
-  const COL2_X = 100;
-  const COL3_X = 310;  // Stats start
+  // ═══ COL 2: Middle (dialogue on top, buttons at bottom) ═══
+  const COL2_X = 72;
+  const COL3_X = 290;  // Stats start (narrower right column)
 
-  // Mood label at top of middle column
+  // Mood label + dialogue at top of middle column
   const moodLabels: Record<string, string> = {
     happy: 'HAPPY', hungry: 'HUNGRY', sad: 'SAD', tired: 'TIRED',
     working: 'WORK', creative: 'CREATE', dead: 'DEAD',
   };
-  drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X + 10, 0, 2);
+  drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X, 2, 2);
 
+  // Dialogue text below mood label
+  if (dialogue) {
+    const maxLineChars = Math.floor((COL3_X - COL2_X) / 8);
+    const upper = dialogue.toUpperCase();
+    // Word-wrap into lines
+    const words = upper.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+    for (const word of words) {
+      if ((currentLine + ' ' + word).trim().length > maxLineChars) {
+        if (currentLine) lines.push(currentLine.trim());
+        currentLine = word;
+      } else {
+        currentLine = (currentLine + ' ' + word).trim();
+      }
+    }
+    if (currentLine) lines.push(currentLine.trim());
+    // Show up to 4 lines of dialogue
+    let dialogueY = 16;
+    for (let i = 0; i < Math.min(lines.length, 4); i++) {
+      drawText(onPixels, lines[i], COL2_X, dialogueY, 2);
+      dialogueY += 12;
+    }
+  }
+
+  // Action buttons at BOTTOM of middle column: 3 cols × 2 rows
   const actions = state === 'dead' ? ['REVIVE'] : ['FEED', 'PLAY', 'COFFEE', 'WORK', 'SLEEP', 'LOVE'];
-  const btnW = Math.floor((COL3_X - COL2_X - 14) / 2); // Two columns with 10px gap
+  const COL2_W = COL3_X - COL2_X;  // Total middle column width
+  const btnW = Math.floor((COL2_W - 12) / 3);  // 3 columns with 6px gaps
   const btnH = 14;
-  const btnGapX = 10;
+  const btnGapX = 6;
   const btnGapY = 3;
-  const btnStartY = 16; // Below mood label
+  const btnStartY = DISPLAY_H - 2 * btnH - btnGapY - 2;  // Anchor to bottom
 
-  // 2-column layout: 3 rows × 2 cols
   for (let i = 0; i < actions.length; i++) {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
+    const col = i % 3;
+    const row = Math.floor(i / 3);
     const bx = COL2_X + col * (btnW + btnGapX);
     const by = btnStartY + row * (btnH + btnGapY);
 
-    if (by + btnH > DISPLAY_H - 14) break;
+    if (by + btnH > DISPLAY_H) break;
 
     // Button outline
     for (let px = bx; px < bx + btnW; px++) {
@@ -208,14 +234,11 @@ export function renderDisplay(
     drawText(onPixels, actions[i], labelX, by + 4, 2);
   }
 
-  // ═══ COL 3: Stats (right, ~216px) ═══
-  const barW = DISPLAY_W - COL3_X - 35;
-  const barH = 10;
-  const statGap = 3;
-  let statY = 0;
-
-  drawText(onPixels, 'STATS', COL3_X, statY, 2);
-  statY += 14;
+  // ═══ COL 3: Stats (right, narrow column) ═══
+  const barW = DISPLAY_W - COL3_X - 20;
+  const barH = 8;  // Smaller bars to fit all 4
+  const barGap = 3;
+  let statY = 2;
 
   const statItems = [
     { label: 'HUNGER', value: stats.hunger },
@@ -228,15 +251,8 @@ export function renderDisplay(
     drawText(onPixels, stat.label, COL3_X, statY, 2);
     statY += 12;
     drawBar(onPixels, COL3_X, statY, barW, barH, stat.value);
-    drawText(onPixels, `${stat.value}`, COL3_X + barW + 3, statY + 2, 2);
-    statY += barH + statGap;
-  }
-
-  // ═══ Bottom: Dialogue ═══
-  if (dialogue) {
-    const maxChars = Math.floor((DISPLAY_W - 10) / 8); // 2px font = 8px per char
-    const truncated = dialogue.length > maxChars ? dialogue.substring(0, maxChars - 1) + '!' : dialogue;
-    drawText(onPixels, truncated.toUpperCase(), 5, DISPLAY_H - 12, 2);
+    drawText(onPixels, `${stat.value}`, COL3_X + barW + 3, statY + 1, 2);
+    statY += barH + barGap;
   }
 
   return pixelsTo1BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
