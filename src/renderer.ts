@@ -23,49 +23,180 @@ function rect(x: number, y: number, w: number, h: number): Pixel[] {
 }
 
 // ─── Sprite Definitions ───
+// Redesigned character: rounder head, bigger eyes, fuller hair, proper body
+// Grid is 16 wide × 22 tall (extra 2 rows for feet)
 
-const HEAD_BASE: Pixel[] = [
-  ...rect(5, 0, 5, 1), ...rect(4, 1, 7, 1), ...rect(3, 2, 9, 1),
-  ...rect(3, 3, 9, 7), ...rect(3, 3, 3, 2), ...rect(3, 4, 2, 1),
+type PixelRow = [number, number]; // [x, y]
+
+function rect(x: number, y: number, w: number, h: number): PixelRow[] {
+  const pixels: PixelRow[] = [];
+  for (let dx = 0; dx < w; dx++) {
+    for (let dy = 0; dy < h; dy++) {
+      pixels.push([x + dx, y + dy]);
+    }
+  }
+  return pixels;
+}
+
+// Shared head shape - rounder, fuller hair
+const HEAD: PixelRow[] = [
+  // Hair top (wide, rounded)
+  ...rect(5, 0, 6, 1),
+  ...rect(4, 1, 8, 1),
+  ...rect(3, 2, 10, 1),
+  ...rect(3, 3, 10, 1),
+  // Face (slightly narrower)
+  ...rect(3, 4, 10, 1),  // Forehead
+  ...rect(4, 5, 8, 1),   // Eye level
+  ...rect(4, 6, 8, 1),   // Below eyes
+  ...rect(4, 7, 8, 1),   // Cheeks
+  ...rect(5, 8, 6, 1),   // Mouth
+  ...rect(5, 9, 6, 1),   // Chin
+  ...rect(6, 10, 4, 1),  // Jaw
 ];
 
-interface SpriteFrame { head: Pixel[]; body: Pixel[]; accessories: Pixel[]; }
+// Shared body
+const BODY: PixelRow[] = [
+  // Neck
+  ...rect(6, 11, 4, 1),
+  // Shirt (wider shoulders)
+  ...rect(4, 12, 8, 1),
+  ...rect(3, 13, 10, 1),
+  ...rect(3, 14, 10, 2),
+  ...rect(3, 16, 10, 1),
+  // Arms
+  ...rect(2, 13, 1, 3),  // Left arm
+  ...rect(13, 13, 1, 3), // Right arm
+  // Legs
+  ...rect(5, 17, 3, 2),  // Left leg
+  ...rect(5, 19, 3, 2),  // Left foot
+  ...rect(8, 17, 3, 2),  // Right leg  
+  ...rect(8, 19, 3, 2),  // Right foot
+  // Target emoji on shirt
+  [7, 14], [8, 14],
+  [7, 15], [8, 15],
+];
+
+interface SpriteFrame { head: PixelRow[]; body: PixelRow[]; accessories: PixelRow[]; }
 
 const SPRITES: Record<string, SpriteFrame> = {
   happy: {
-    head: [...HEAD_BASE, [5,5],[9,5],[5,8],[6,8],[7,8],[8,8],[9,8],[5,7],[9,7]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2),[6,13],[7,13],[6,14],[7,14]],
+    head: [
+      ...HEAD,
+      // Big round eyes
+      [5, 5], [6, 5], [9, 5], [10, 5],
+      [5, 6], [10, 6],  // Eye outline corners
+      // Happy mouth (wide smile)
+      ...rect(6, 8, 4, 1),
+      [5, 7], [11, 7],  // Smile corners
+    ],
+    body: BODY,
     accessories: [],
   },
   hungry: {
-    head: [...HEAD_BASE, [4,5],[5,5],[9,5],[10,5],[5,8],[6,8],[7,8],[5,9],[11,3]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2)],
-    accessories: [[1,14],[0,13],[13,14],[14,13]],
+    head: [
+      ...HEAD,
+      // Worried big eyes
+      [5, 5], [6, 5], [7, 5], [9, 5], [10, 5], [11, 5],
+      [5, 6], [11, 6],
+      // Open mouth (small o)
+      [7, 8], [8, 8],
+      [7, 9], [8, 9],
+      // Sweat drop
+      [12, 3],
+    ],
+    body: BODY,
+    accessories: [],
   },
   sad: {
-    head: [...HEAD_BASE, [5,6],[9,6],[5,8],[6,8],[7,8],[8,8],[9,8],[5,9],[9,9],[10,6],[10,7]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2)],
+    head: [
+      ...HEAD,
+      // Sad eyes (looking down)
+      [5, 6], [6, 6], [9, 6], [10, 6],
+      // Sad mouth (frown)
+      [6, 8], [9, 8],
+      [5, 9], [10, 9],
+      // Tear
+      [11, 6], [11, 7],
+    ],
+    body: BODY,
     accessories: [],
   },
   tired: {
-    head: [...HEAD_BASE, [4,6],[5,6],[9,6],[10,6],[6,8],[7,8],[12,1],[13,2],[12,0],[13,1]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2)],
+    head: [
+      ...HEAD,
+      // Closed eyes (horizontal lines)
+      [5, 5], [6, 5], [7, 5],
+      [9, 5], [10, 5], [11, 5],
+      // Slight mouth
+      [7, 8], [8, 8],
+      // Zzz floating
+      [12, 0], [13, 0],
+      [13, 1], [14, 1],
+    ],
+    body: BODY,
     accessories: [],
   },
   working: {
-    head: [...HEAD_BASE, ...rect(4,5,7,1),[5,6],[9,6],[4,6],[7,6],[8,6],[11,6],[5,8],[6,8],[7,8],[8,8],[9,8]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2)],
-    accessories: [[13,13],[14,13],[13,14],[14,14]],
+    head: [
+      ...HEAD,
+      // Glasses
+      ...rect(5, 5, 3, 2),  // Left lens
+      ...rect(9, 5, 3, 2),  // Right lens
+      [8, 5],              // Bridge
+      // Eyes through glasses
+      [6, 6], [10, 6],
+      // Determined mouth
+      ...rect(6, 8, 4, 1),
+    ],
+    body: BODY,
+    accessories: [
+      // Laptop (to the right)
+      ...rect(14, 13, 2, 1),
+      ...rect(14, 14, 2, 2),
+    ],
   },
   creative: {
-    head: [...HEAD_BASE, [4,5],[5,5],[9,5],[10,5],[5,6],[6,6],[8,6],[9,6],[5,7],[10,7],[5,8],[6,8],[7,8],[8,8],[9,8]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2),[6,13],[7,13],[6,14],[7,14]],
-    accessories: [[0,0],[15,1]],
+    head: [
+      ...HEAD,
+      // Wide excited eyes
+      [5, 5], [6, 5], [7, 5], [9, 5], [10, 5], [11, 5],
+      [5, 6], [7, 6], [9, 6], [11, 6],
+      // Big grin
+      [5, 7], [11, 7],
+      ...rect(6, 8, 4, 1),
+    ],
+    body: BODY,
+    accessories: [
+      // Sparkles
+      [0, 0], [1, 1],
+      [14, 0], [15, 1],
+    ],
   },
   dead: {
-    head: [...rect(5,0,5,1),...rect(4,1,7,1),...rect(3,2,9,1),...rect(3,3,9,7),...rect(3,10,9,1),[4,4],[5,5],[5,4],[4,5],[8,4],[9,5],[9,4],[8,5],[5,8],[6,8],[7,8],[8,8],[9,8]],
-    body: [...rect(5,10,5,1),...rect(3,11,9,6),...rect(2,12,1,3),...rect(12,12,1,3),...rect(4,17,3,2),...rect(8,17,3,2)],
-    accessories: [[0,4],[15,4]],
+    head: [
+      // Skull shape (same outline, hollow)
+      ...rect(5, 0, 6, 1),
+      ...rect(4, 1, 8, 1),
+      ...rect(3, 2, 10, 1),
+      ...rect(3, 3, 10, 1),
+      ...rect(3, 4, 10, 1),
+      ...rect(4, 5, 8, 1),
+      ...rect(4, 6, 8, 1),
+      ...rect(4, 7, 8, 1),
+      ...rect(5, 8, 6, 1),
+      ...rect(5, 9, 6, 1),
+      ...rect(6, 10, 4, 1),
+      // X eyes
+      [5, 4], [7, 6],
+      [7, 4], [5, 6],
+      [9, 4], [11, 6],
+      [11, 4], [9, 6],
+      // Flat mouth
+      ...rect(6, 8, 4, 1),
+    ],
+    body: BODY,
+    accessories: [],
   },
 };
 
@@ -146,10 +277,10 @@ export function renderDisplay(
   const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
 
-  // ═══ COL 1: Character (left, compact) ═══
+  // ═══ COL 1: Character (left) ═══
   const CHAR_SCALE = 4;
   const CHAR_X = 2;
-  const CHAR_Y = 5;
+  const CHAR_Y = 3;
 
   for (const [sx, sy] of allPixels) {
     if (sx < 0 || sy < 0) continue;
@@ -175,7 +306,7 @@ export function renderDisplay(
     happy: 'HAPPY', hungry: 'HUNGRY', sad: 'SAD', tired: 'TIRED',
     working: 'WORK', creative: 'CREATE', dead: 'DEAD',
   };
-  drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X, 2, 2);
+  drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X, 3, 2);
 
   // Dialogue text below mood label
   if (dialogue) {
@@ -209,7 +340,7 @@ export function renderDisplay(
   const btnH = 14;
   const btnGapX = 6;
   const btnGapY = 3;
-  const btnStartY = DISPLAY_H - 2 * btnH - btnGapY - 2;  // Anchor to bottom
+  const btnStartY = DISPLAY_H - 2 * btnH - btnGapY - 4;  // Anchor to bottom with margin
 
   for (let i = 0; i < actions.length; i++) {
     const col = i % 3;
