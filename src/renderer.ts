@@ -235,18 +235,22 @@ const SPRITES: Record<string, SpriteFrame> = {
 
 // ─── BMP Generation ───
 
-// Even G1 display resolution
-const DISPLAY_W = 640;
-const DISPLAY_H = 200;
+// Even G1 display resolution (what the SDK expects)
+// The SDK logs say: "Adding padding to BMP since it isn't 576x135"
+// So we render at exactly 576x135 to avoid auto-padding issues.
+const DISPLAY_W = 576;
+const DISPLAY_H = 135;
 
 // Scale: make the character fill most of the display height
 // Sprite grid is ~16 wide x ~20 tall
-// To fill 180px of height: scale = 180/20 = 9
-const SPRITE_SCALE = 9;
+// 135 height - 10 top margin - 25 bottom margin for stats = 100 for character
+// 100 / 20 = 5px per sprite pixel
+// Actually let's use the full height: 135/20 ≈ 6.75, round to 6
+const SPRITE_SCALE = 6;
 
-// Center the sprite horizontally and give some top margin
+// Center horizontally
 const SPRITE_OFFSET_X = Math.floor((DISPLAY_W - 16 * SPRITE_SCALE) / 2);
-const SPRITE_OFFSET_Y = 10;
+const SPRITE_OFFSET_Y = 5;
 
 /**
  * Render a character state as a 1-bit BMP, base64-encoded.
@@ -308,10 +312,10 @@ export function renderSpriteWithStats(state: string, stats: { hunger: number; ha
   }
 
   // Draw stat bars in bottom section
-  const barStartY = 155;
-  const barHeight = 8;
-  const barMaxWidth = 200;
-  const barGap = 20;
+  const barStartY = 110;
+  const barHeight = 6;
+  const barMaxWidth = 120;
+  const barGap = 7;
 
   const bars = [
     { value: stats.hunger, y: barStartY },
@@ -320,7 +324,7 @@ export function renderSpriteWithStats(state: string, stats: { hunger: number; ha
     { value: stats.creativity, y: barStartY + barGap * 3 },
   ];
 
-  const barX = 220; // Left-aligned bars
+  const barX = Math.floor((DISPLAY_W - barMaxWidth) / 2); // Center bars
 
   for (const bar of bars) {
     // Bar outline

@@ -36,6 +36,7 @@ class VoirTchiServer extends AppServer {
 
   protected async onSession(session: AppSession, sessionId: string, userId: string): Promise<void> {
     console.log(`[Voir-tchi] Session started: ${sessionId} (user: ${userId})`);
+    try {
 
     // ─── Create game instance for this session ───
 
@@ -105,6 +106,10 @@ class VoirTchiServer extends AppServer {
       game.stop();
       console.log(`[Voir-tchi] Session ended: ${sessionId}`);
     });
+    } catch (err: any) {
+      console.error(`[Voir-tchi] ❌ onSession error:`, err?.message || err);
+      console.error(`[Voir-tchi] ❌ Stack:`, err?.stack || 'no stack');
+    }
   }
 }
 
