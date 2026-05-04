@@ -164,41 +164,48 @@ export function renderDisplay(
     }
   }
 
-  // Mood label under character
+  // Mood label is now in COL2, not under character
+
+  // ═══ COL 2: Action buttons (middle) ═══
+  const COL2_X = 100;
+  const COL3_X = 310;  // Stats start
+
+  // Mood label at top of middle column
   const moodLabels: Record<string, string> = {
     happy: 'HAPPY', hungry: 'HUNGRY', sad: 'SAD', tired: 'TIRED',
     working: 'WORK', creative: 'CREATE', dead: 'DEAD',
   };
-  drawText(onPixels, moodLabels[state] || 'HAPPY', CHAR_X, CHAR_Y + 20 * CHAR_SCALE + 2, 2);
-
-  // ═══ COL 2: Action buttons (middle, ~190px) ═══
-  const COL2_X = 100;
-  const COL3_X = 310;  // Stats start
+  drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X + 10, 0, 2);
 
   const actions = state === 'dead' ? ['REVIVE'] : ['FEED', 'PLAY', 'COFFEE', 'WORK', 'SLEEP', 'LOVE'];
-  const btnW = COL3_X - COL2_X - 10;  // Fill column width
+  const btnW = Math.floor((COL3_X - COL2_X - 14) / 2); // Two columns with 10px gap
   const btnH = 14;
-  const btnGap = 2;
-  let btnY = 0;
+  const btnGapX = 10;
+  const btnGapY = 3;
+  const btnStartY = 16; // Below mood label
 
+  // 2-column layout: 3 rows × 2 cols
   for (let i = 0; i < actions.length; i++) {
-    if (btnY + btnH > DISPLAY_H - 14) break; // Leave room for dialogue
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const bx = COL2_X + col * (btnW + btnGapX);
+    const by = btnStartY + row * (btnH + btnGapY);
+
+    if (by + btnH > DISPLAY_H - 14) break;
 
     // Button outline
-    for (let bx = COL2_X; bx < COL2_X + btnW; bx++) {
-      onPixels.add(`${bx},${btnY}`);
-      onPixels.add(`${bx},${btnY + btnH - 1}`);
+    for (let px = bx; px < bx + btnW; px++) {
+      onPixels.add(`${px},${by}`);
+      onPixels.add(`${px},${by + btnH - 1}`);
     }
-    for (let by = btnY; by < btnY + btnH; by++) {
-      onPixels.add(`${COL2_X},${by}`);
-      onPixels.add(`${COL2_X + btnW - 1},${by}`);
+    for (let py = by; py < by + btnH; py++) {
+      onPixels.add(`${bx},${py}`);
+      onPixels.add(`${bx + btnW - 1},${py}`);
     }
     // Label centered
     const labelW = actions[i].length * 4 * 2;
-    const labelX = COL2_X + Math.floor((btnW - labelW) / 2);
-    drawText(onPixels, actions[i], labelX, btnY + 4, 2);
-
-    btnY += btnH + btnGap;
+    const labelX = bx + Math.floor((btnW - labelW) / 2);
+    drawText(onPixels, actions[i], labelX, by + 4, 2);
   }
 
   // ═══ COL 3: Stats (right, ~216px) ═══
