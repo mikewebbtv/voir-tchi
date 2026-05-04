@@ -15,7 +15,9 @@ import { prerenderAllSprites } from './renderer';
 
 const PACKAGE_NAME = process.env.PACKAGE_NAME || 'org.voir.tchi';
 const MENTRAOS_API_KEY = process.env.MENTRAOS_API_KEY || '';
+// Railway dynamically assigns PORT — must use whatever it gives us
 const PORT = parseInt(process.env.PORT || '3020');
+console.log(`[Config] PORT env=${process.env.PORT} using=${PORT}`);
 
 // ─── State ───
 
@@ -194,17 +196,32 @@ async function main() {
   console.log('Voir-tchi v0.1.0 — Tamagotchi for Smart Glasses');
   console.log(`  Package: ${PACKAGE_NAME}`);
   console.log(`  Port: ${PORT}`);
+  console.log(`[Config] PORT env=${process.env.PORT} using=${PORT}`);
 
   // Pre-render all sprites at startup
   console.log('  Pre-rendering sprites...');
   spriteCache = prerenderAllSprites();
   console.log(`  Cached ${Object.keys(spriteCache).length} sprites`);
 
-  // Start server
+  // Start MentraOS app server
   const server = new VoirTchiServer();
   await server.start();
 
-  console.log('  🐣 Voir-tchi is live!');
+  // The SDK extends Hono but doesn't start an HTTP server in start().
+  // We need to serve it ourselves using Bun's built-in server.
+  const port = PORT;
+  console.log(`  Starting HTTP server on 0.0.0.0:${port}...`);
+
+  Bun.serve({
+    port,
+    fetch: server.fetch.bind(server),
+  });
+
+  console.log(`  🐣 Voir-tchi is live on port ${port}!`);
+  console.log('  Waiting for MentraOS connections...');
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});
