@@ -1,13 +1,13 @@
 /**
- * Voir-tchi BMP Renderer v5
+ * Voir-tchi BMP Renderer v6
  * 
- * 3-column layout for Even G1 glasses (526×100 visible area):
+ * 3-column layout for Even G1 (526×100 visible area):
  * - Col 1 (left): Character sprite + mood label
- * - Col 2 (middle): Action buttons (speakable)
- * - Col 3 (right): Stats bars
+ * - Col 2 (middle): Action buttons (full column width, stacked vertically)
+ * - Col 3 (right): Stats bars (full column width)
  * - Bottom: Dialogue line
  * 
- * SDK pads 526×100 → 576×135 with left:50, top:35
+ * All text uses 2px font for readability on glasses.
  */
 
 type Pixel = [number, number];
@@ -135,13 +135,6 @@ function drawBar(onPixels: Set<string>, x: number, y: number, width: number, hei
 const DISPLAY_W = 526;
 const DISPLAY_H = 100;
 
-// 3-column layout
-const CHAR_SCALE = 4;
-const CHAR_X = 5;
-const CHAR_Y = 3;
-const COL2_X = 85;    // Actions
-const COL3_X = 270;   // Stats
-
 // ─── Render ───
 
 export function renderDisplay(
@@ -153,7 +146,11 @@ export function renderDisplay(
   const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
 
-  // ═══ COL 1: Character (left) ═══
+  // ═══ COL 1: Character (left, ~95px) ═══
+  const CHAR_SCALE = 5;
+  const CHAR_X = 3;
+  const CHAR_Y = 2;
+
   for (const [sx, sy] of allPixels) {
     if (sx < 0 || sy < 0) continue;
     for (let dx = 0; dx < CHAR_SCALE; dx++) {
@@ -170,45 +167,49 @@ export function renderDisplay(
   // Mood label under character
   const moodLabels: Record<string, string> = {
     happy: 'HAPPY', hungry: 'HUNGRY', sad: 'SAD', tired: 'TIRED',
-    working: 'WORKING', creative: 'CREATIVE', dead: 'DEAD',
+    working: 'WORK', creative: 'CREATE', dead: 'DEAD',
   };
-  drawText(onPixels, moodLabels[state] || 'HAPPY', CHAR_X, CHAR_Y + 20 * CHAR_SCALE + 3, 1);
+  drawText(onPixels, moodLabels[state] || 'HAPPY', CHAR_X, CHAR_Y + 20 * CHAR_SCALE + 2, 2);
 
-  // ═══ COL 2: Actions (middle) ═══
-  let y = 2;
-  drawText(onPixels, 'SAY', COL2_X, y, 2);
-  y += 14;
+  // ═══ COL 2: Action buttons (middle, ~190px) ═══
+  const COL2_X = 100;
+  const COL3_X = 310;  // Stats start
 
   const actions = state === 'dead' ? ['REVIVE'] : ['FEED', 'PLAY', 'COFFEE', 'WORK', 'SLEEP', 'LOVE'];
-  const btnW = 60;
-  const btnH = 11;
+  const btnW = COL3_X - COL2_X - 10;  // Fill column width
+  const btnH = 14;
   const btnGap = 2;
+  let btnY = 0;
 
   for (let i = 0; i < actions.length; i++) {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const bx = COL2_X + col * (btnW + 4);
-    const by = y + row * (btnH + btnGap);
-    if (by + btnH > DISPLAY_H - 8) break;
+    if (btnY + btnH > DISPLAY_H - 14) break; // Leave room for dialogue
 
-    for (let px = bx; px < bx + btnW; px++) {
-      onPixels.add(`${px},${by}`);
-      onPixels.add(`${px},${by + btnH - 1}`);
+    // Button outline
+    for (let bx = COL2_X; bx < COL2_X + btnW; bx++) {
+      onPixels.add(`${bx},${btnY}`);
+      onPixels.add(`${bx},${btnY + btnH - 1}`);
     }
-    for (let py = by; py < by + btnH; py++) {
-      onPixels.add(`${bx},${py}`);
-      onPixels.add(`${bx + btnW - 1},${py}`);
+    for (let by = btnY; by < btnY + btnH; by++) {
+      onPixels.add(`${COL2_X},${by}`);
+      onPixels.add(`${COL2_X + btnW - 1},${by}`);
     }
-    drawText(onPixels, actions[i], bx + 3, by + 3, 1);
+    // Label centered
+    const labelW = actions[i].length * 4 * 2;
+    const labelX = COL2_X + Math.floor((btnW - labelW) / 2);
+    drawText(onPixels, actions[i], labelX, btnY + 4, 2);
+
+    btnY += btnH + btnGap;
   }
 
-  // ═══ COL 3: Stats (right) ═══
-  y = 2;
-  drawText(onPixels, 'STATS', COL3_X, y, 2);
-  y += 14;
+  // ═══ COL 3: Stats (right, ~216px) ═══
+  const barW = DISPLAY_W - COL3_X - 35;
+  const barH = 10;
+  const statGap = 3;
+  let statY = 0;
 
-  const barW = 120;
-  const barH = 8;
+  drawText(onPixels, 'STATS', COL3_X, statY, 2);
+  statY += 14;
+
   const statItems = [
     { label: 'HUNGER', value: stats.hunger },
     { label: 'HAPPY', value: stats.happiness },
@@ -217,18 +218,18 @@ export function renderDisplay(
   ];
 
   for (const stat of statItems) {
-    drawText(onPixels, stat.label, COL3_X, y, 1);
-    y += 7;
-    drawBar(onPixels, COL3_X, y, barW, barH, stat.value);
-    drawText(onPixels, `${stat.value}`, COL3_X + barW + 3, y + 1, 1);
-    y += barH + 3;
+    drawText(onPixels, stat.label, COL3_X, statY, 2);
+    statY += 12;
+    drawBar(onPixels, COL3_X, statY, barW, barH, stat.value);
+    drawText(onPixels, `${stat.value}`, COL3_X + barW + 3, statY + 2, 2);
+    statY += barH + statGap;
   }
 
   // ═══ Bottom: Dialogue ═══
   if (dialogue) {
-    const maxChars = Math.floor((DISPLAY_W - 10) / 4);
+    const maxChars = Math.floor((DISPLAY_W - 10) / 8); // 2px font = 8px per char
     const truncated = dialogue.length > maxChars ? dialogue.substring(0, maxChars - 1) + '!' : dialogue;
-    drawText(onPixels, truncated.toUpperCase(), 5, DISPLAY_H - 7, 1);
+    drawText(onPixels, truncated.toUpperCase(), 5, DISPLAY_H - 12, 2);
   }
 
   return pixelsTo1BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
@@ -264,13 +265,11 @@ function pixelsTo1BitBmpBase64(onPixels: Set<string>, width: number, height: num
   const buf = Buffer.alloc(fileSize, 0);
   let offset = 0;
 
-  // File header
   buf.write('BM', offset); offset += 2;
   buf.writeUInt32LE(fileSize, offset); offset += 4;
   offset += 4;
   buf.writeUInt32LE(62, offset); offset += 4;
 
-  // DIB header
   buf.writeUInt32LE(40, offset); offset += 4;
   buf.writeInt32LE(width, offset); offset += 4;
   buf.writeInt32LE(height, offset); offset += 4;
@@ -283,12 +282,10 @@ function pixelsTo1BitBmpBase64(onPixels: Set<string>, width: number, height: num
   buf.writeUInt32LE(2, offset); offset += 4;
   buf.writeUInt32LE(0, offset); offset += 4;
 
-  // Palette: 0=black (off), 1=green (on)
   offset += 4; // Index 0: black
   buf.writeUInt8(0, offset); buf.writeUInt8(255, offset+1); buf.writeUInt8(0, offset+2); buf.writeUInt8(0, offset+3);
   offset += 4; // Index 1: green
 
-  // Pixel data (bottom-up)
   for (let y = height - 1; y >= 0; y--) {
     for (let byteIdx = 0; byteIdx < rowSize; byteIdx++) {
       let byteVal = 0;
