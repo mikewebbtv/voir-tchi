@@ -2,15 +2,14 @@
  * Voir-tchi BMP Renderer v3
  * 
  * Even G1 hardware: 640×200 green monochrome display.
- * SDK internal format: 576×135 1-bit BMP after conversion.
+ * SDK internal format: 576×135 1-bit BMP.
  * 
- * Strategy: Generate a 24-bit BMP at exactly 576×135.
+ * Strategy: Generate a 1-bit BMP at exactly 576×135.
  * The SDK reads it with Jimp, sees it's already 576×135, skips padding
- * (no black fill!), then converts to 1-bit for the glasses.
+ * (no black rectangle fill!). Then validates the BMP size (~9,782 bytes).
  * 
- * On the glasses: green pixels (non-black in 24-bit) = ON, black pixels = OFF (transparent).
- * We use RGB (0, 255, 0) for character pixels → green on glasses.
- * Background is pure black (0, 0, 0) → transparent on glasses (pixel off).
+ * On the glasses: 1-bit = ON (green pixel), 0-bit = OFF (transparent).
+ * Palette: index 0 = black (off), index 1 = green (on).
  */
 
 // ─── Sprite Definitions ───
@@ -195,13 +194,13 @@ const SPRITE_OFFSET_Y = Math.floor((DISPLAY_H - 20 * SPRITE_SCALE) / 2);
 
 // ─── 24-bit BMP Generation ───
 
-function pixelsTo24BitBmpBase64(onPixels: Set<string>, width: number, height: number): string {
-  // 24-bit BMP: 3 bytes per pixel (BGR), rows padded to 4-byte boundary
-  const rowBytes = width * 3;
-  const rowPadding = (4 - (rowBytes % 4)) % 4;
-  const rowSize = rowBytes + rowPadding;
+function pixelsTo1BitBmpBase64(onPixels: Set<string>, width: number, height: number): string {
+  // 1-bit BMP: 1 bit per pixel, rows padded to 4-byte boundary
+  // Palette: index 0 = black (off/transparent), index 1 = on (green on glasses)
+  const rowBits = width; // 576 bits
+  const rowSize = Math.ceil(rowBits / 32) * 4; // 72 bytes per row (576/8=72, already 4-byte aligned)
   const pixelDataSize = rowSize * height;
-  const fileSize = 14 + 40 + pixelDataSize; // No color table for 24-bit
+  const fileSize = 14 + 40 + 8 + pixelDataSize; // 14 header + 40 DIB + 8 palette + pixel data
 
   const buf = Buffer.alloc(fileSize, 0);
   let offset = 0;
@@ -210,37 +209,51 @@ function pixelsTo24BitBmpBase64(onPixels: Set<string>, width: number, height: nu
   buf.write('BM', offset); offset += 2;
   buf.writeUInt32LE(fileSize, offset); offset += 4;
   offset += 4; // Reserved
-  buf.writeUInt32LE(54, offset); offset += 4; // Pixel data offset (14+40)
+  buf.writeUInt32LE(62, offset); offset += 4; // Pixel data offset (14+40+8)
 
   // DIB header (BITMAPINFOHEADER, 40 bytes)
   buf.writeUInt32LE(40, offset); offset += 4;
   buf.writeInt32LE(width, offset); offset += 4;
   buf.writeInt32LE(height, offset); offset += 4; // Positive = bottom-up
   buf.writeUInt16LE(1, offset); offset += 2; // Planes
-  buf.writeUInt16LE(24, offset); offset += 2; // Bits per pixel = 24
-  buf.writeUInt32LE(0, offset); offset += 4; // No compression (BI_RGB)
-  buf.writeUInt32LE(pixelDataSize, offset); offset += 4;
-  offset += 16; // Skip resolution (4+4) and colors (4+4)
+  buf.writeUInt16LE(1, offset); offset += 2; // Bits per pixel
+  buf.writeUInt32LE(0, offset); offset += 4; // BI_RGB (no compression)
+  buf.writeUInt32LE(pixelDataSize, offset); offset += 4; // Image size
+  buf.writeInt32LE(2835, offset); offset += 4; // X pixels per meter
+  buf.writeInt32LE(2835, offset); offset += 4; // Y pixels per meter
+  buf.writeUInt32LE(2, offset); offset += 4; // Colors used
+  buf.writeUInt32LE(0, offset); offset += 4; // Important colors
 
-  // Pixel data (bottom-up, BGR order)
+  // Color table: 2 entries
+  // Index 0 = black (OFF) → pixel value 0
+  buf.writeUInt8(0, offset);   // B
+  buf.writeUInt8(0, offset+1); // G
+  buf.writeUInt8(0, offset+2); // R
+  buf.writeUInt8(0, offset+3); // Reserved
+  offset += 4;
+
+  // Index 1 = green (ON) → pixel value 1
+  buf.writeUInt8(0, offset);     // B
+  buf.writeUInt8(255, offset+1); // G
+  buf.writeUInt8(0, offset+2);   // R
+  buf.writeUInt8(0, offset+3);   // Reserved
+  offset += 4;
+
+  // Pixel data (bottom-up, MSB first)
   for (let y = height - 1; y >= 0; y--) {
-    for (let x = 0; x < width; x++) {
-      const key = `${x},${y}`;
-      if (onPixels.has(key)) {
-        // Character pixel: green (B=0, G=255, R=0)
-        buf[offset++] = 0;   // B
-        buf[offset++] = 255; // G
-        buf[offset++] = 0;   // R
-      } else {
-        // Background: black (transparent on glasses)
-        buf[offset++] = 0;
-        buf[offset++] = 0;
-        buf[offset++] = 0;
+    for (let byteIdx = 0; byteIdx < rowSize; byteIdx++) {
+      let byteVal = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = byteIdx * 8 + bit;
+        if (x < width) {
+          const key = `${x},${y}`;
+          if (onPixels.has(key)) {
+            byteVal |= (1 << (7 - bit)); // Set bit = ON (green)
+          }
+          // Unset bit = OFF (black/transparent)
+        }
       }
-    }
-    // Row padding
-    for (let p = 0; p < rowPadding; p++) {
-      buf[offset++] = 0;
+      buf[offset++] = byteVal;
     }
   }
 
@@ -268,7 +281,7 @@ export function renderSprite(state: string): string {
     }
   }
 
-  return pixelsTo24BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
+  return pixelsTo1BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
 }
 
 export function renderSpriteWithStats(
@@ -346,7 +359,7 @@ export function renderSpriteWithStats(
     }
   }
 
-  return pixelsTo24BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
+  return pixelsTo1BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
 }
 
 export function prerenderAllSprites(): Record<string, string> {
