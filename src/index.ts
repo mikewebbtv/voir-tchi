@@ -50,7 +50,7 @@ class VoirTchiServer extends AppServer {
           'Say "revive" to bring him back!',
           { durationMs: 30000 }
         );
-        session.layouts.showBitmapView(spriteCache.dead || '');
+        session.layouts.showBitmapView(spriteCache.dead || '', { padding: { left: 0, top: 0 } });
       },
       onLowStat: (stat, value) => {
         const emoji = stat === 'hunger' ? '🍖' : stat === 'happiness' ? '😊' : '⚡';
@@ -71,7 +71,7 @@ class VoirTchiServer extends AppServer {
     );
 
     const initialState = game.getStats();
-    session.layouts.showBitmapView(spriteCache[initialState.state] || spriteCache.happy);
+    session.layouts.showBitmapView(spriteCache[initialState.state] || spriteCache.happy, { padding: { left: 0, top: 0 } });
     updateDashboard(session, game.stats, initialState.state);
 
     // ─── Start game tick ───
@@ -148,7 +148,7 @@ function showActionResult(session: AppSession, result: any): void {
 
   // Show pixel art
   const bmp = spriteCache[state] || spriteCache.happy;
-  session.layouts.showBitmapView(bmp);
+  session.layouts.showBitmapView(bmp, { padding: { left: 0, top: 0 } });
 
   // Show dialogue as text overlay
   if (action === 'status') {
@@ -192,7 +192,7 @@ function updateDashboard(session: AppSession, stats: any, state: string): void {
   const left = `${emoji} tchi`;
   const right = `🍖${stats.hunger} 😊${stats.happiness} ⚡${stats.energy}`;
 
-  session.dashboard.writeToMain(`${emoji} 🍖${stats.hunger} 😊${stats.happiness} ⚡${stats.energy} 🎨${stats.creativity}`);
+  session.dashboard.content.writeToMain(`${emoji} 🍖${stats.hunger} 😊${stats.happiness} ⚡${stats.energy} 🎨${stats.creativity}`);
 }
 
 // ─── Main ───
