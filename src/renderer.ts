@@ -179,16 +179,18 @@ function drawBar(onPixels: Set<string>, x: number, y: number, width: number, hei
 
 // ─── Canvas ───
 
-const DISPLAY_W = 576;
-const DISPLAY_H = 135;
+// SDK pads 526×100 → 576×135 with left:50, top:35
+// So the VISIBLE area on glasses is 526×100
+const DISPLAY_W = 526;
+const DISPLAY_H = 100;
 
-// Character on left side
-const CHAR_SCALE = 5;
-const CHAR_X = 20;
-const CHAR_Y = 10;
+// Character on left side, smaller to fit
+const CHAR_SCALE = 4;
+const CHAR_X = 5;
+const CHAR_Y = 5;
 
-// Right panel starts after character
-const PANEL_X = CHAR_X + 16 * CHAR_SCALE + 20; // ~120
+// Right panel
+const PANEL_X = CHAR_X + 16 * CHAR_SCALE + 8; // ~77
 
 // ─── Render Full Display ───
 
@@ -215,81 +217,84 @@ export function renderDisplay(
     }
   }
 
-  // ─── Right panel: stats ───
-  const fontSize = 2;
-  const barW = 80;
-  const barH = 8;
-  const barGap = 18;
-  let panelY = 8;
+  // ─── Right panel: stats (compact) ───
+  const fontSize = 1;
+  const barW = 60;
+  const barH = 6;
+  const barGap = 12;
+  let panelY = 2;
 
   // Stats title
-  drawText(onPixels, 'STATS', PANEL_X, panelY, fontSize);
-  panelY += 14;
+  drawText(onPixels, 'STATS', PANEL_X, panelY, 2);
+  panelY += 12;
 
   // Hunger bar
-  drawText(onPixels, 'HUN', PANEL_X, panelY, fontSize);
-  drawBar(onPixels, PANEL_X + 32, panelY, barW, barH, stats.hunger);
-  drawText(onPixels, `${stats.hunger}%`, PANEL_X + 32 + barW + 4, panelY, fontSize);
+  drawText(onPixels, 'H', PANEL_X, panelY + 1, fontSize);
+  drawBar(onPixels, PANEL_X + 8, panelY, barW, barH, stats.hunger);
+  drawText(onPixels, `${stats.hunger}`, PANEL_X + 8 + barW + 2, panelY + 1, fontSize);
   panelY += barGap;
 
   // Happiness bar
-  drawText(onPixels, 'HAP', PANEL_X, panelY, fontSize);
-  drawBar(onPixels, PANEL_X + 32, panelY, barW, barH, stats.happiness);
-  drawText(onPixels, `${stats.happiness}%`, PANEL_X + 32 + barW + 4, panelY, fontSize);
+  drawText(onPixels, 'P', PANEL_X, panelY + 1, fontSize);
+  drawBar(onPixels, PANEL_X + 8, panelY, barW, barH, stats.happiness);
+  drawText(onPixels, `${stats.happiness}`, PANEL_X + 8 + barW + 2, panelY + 1, fontSize);
   panelY += barGap;
 
   // Energy bar
-  drawText(onPixels, 'ENG', PANEL_X, panelY, fontSize);
-  drawBar(onPixels, PANEL_X + 32, panelY, barW, barH, stats.energy);
-  drawText(onPixels, `${stats.energy}%`, PANEL_X + 32 + barW + 4, panelY, fontSize);
+  drawText(onPixels, 'E', PANEL_X, panelY + 1, fontSize);
+  drawBar(onPixels, PANEL_X + 8, panelY, barW, barH, stats.energy);
+  drawText(onPixels, `${stats.energy}`, PANEL_X + 8 + barW + 2, panelY + 1, fontSize);
   panelY += barGap;
 
   // Creativity bar
-  drawText(onPixels, 'CRE', PANEL_X, panelY, fontSize);
-  drawBar(onPixels, PANEL_X + 32, panelY, barW, barH, stats.creativity);
-  drawText(onPixels, `${stats.creativity}%`, PANEL_X + 32 + barW + 4, panelY, fontSize);
-  panelY += barGap + 4;
+  drawText(onPixels, 'C', PANEL_X, panelY + 1, fontSize);
+  drawBar(onPixels, PANEL_X + 8, panelY, barW, barH, stats.creativity);
+  drawText(onPixels, `${stats.creativity}`, PANEL_X + 8 + barW + 2, panelY + 1, fontSize);
+  panelY += barGap + 2;
 
-  // ─── Right panel: action buttons ───
-  const btnFontSize = 2;
-  const btnH = 12;
-  const btnGap = 3;
-  
-  drawText(onPixels, 'SAY:', PANEL_X, panelY, btnFontSize);
-  panelY += 12;
+  // ─── Right panel: action buttons (compact) ───
+  const btnFontSize = 1;
+  const btnH = 9;
+  const btnGap = 2;
+
+  drawText(onPixels, 'SAY:', PANEL_X, panelY, 2);
+  panelY += 10;
 
   const actions = state === 'dead'
     ? ['REVIVE']
     : ['FEED', 'PLAY', 'COFFEE', 'WORK', 'SLEEP', 'LOVE'];
 
-  for (const action of actions) {
-    // Draw button outline
-    const btnW = action.length * 4 * btnFontSize + 6;
-    for (let bx = PANEL_X; bx < PANEL_X + btnW; bx++) {
-      onPixels.add(`${bx},${panelY}`);
-      onPixels.add(`${bx},${panelY + btnH - 1}`);
-    }
-    for (let by = panelY; by < panelY + btnH; by++) {
-      onPixels.add(`${PANEL_X},${by}`);
-      onPixels.add(`${PANEL_X + btnW - 1},${by}`);
-    }
-    // Draw button label centered
-    const labelW = action.length * 4 * btnFontSize;
-    const labelX = PANEL_X + Math.floor((btnW - labelW) / 2);
-    drawText(onPixels, action, labelX, panelY + 3, btnFontSize);
-    
-    panelY += btnH + btnGap;
+  // Lay out actions in 2 columns if space is tight
+  const col1X = PANEL_X;
+  const col2X = PANEL_X + 70;
+  let row = 0;
 
-    // Stop if we run out of vertical space
-    if (panelY + btnH > DISPLAY_H - 5) break;
+  for (let i = 0; i < actions.length; i++) {
+    const action = actions[i];
+    const x = i % 2 === 0 ? col1X : col2X;
+    const y = panelY + Math.floor(i / 2) * (btnH + btnGap);
+
+    if (y + btnH > DISPLAY_H - 8) break;
+
+    // Button outline
+    const btnW = action.length * 4 * btnFontSize + 4;
+    for (let bx = x; bx < x + btnW; bx++) {
+      onPixels.add(`${bx},${y}`);
+      onPixels.add(`${bx},${y + btnH - 1}`);
+    }
+    for (let by = y; by < y + btnH; by++) {
+      onPixels.add(`${x},${by}`);
+      onPixels.add(`${x + btnW - 1},${by}`);
+    }
+    // Label
+    drawText(onPixels, action, x + 2, y + 2, btnFontSize);
   }
 
   // ─── Bottom: dialogue line ───
   if (dialogue) {
-    // Truncate to fit
-    const maxChars = Math.floor((DISPLAY_W - 10) / (4 * fontSize));
-    const truncated = dialogue.length > maxChars ? dialogue.substring(0, maxChars - 1) + '...' : dialogue;
-    drawText(onPixels, truncated.toUpperCase(), 10, DISPLAY_H - 10, fontSize);
+    const maxChars = Math.floor((DISPLAY_W - 10) / (4 * 1));
+    const truncated = dialogue.length > maxChars ? dialogue.substring(0, maxChars - 1) + '!' : dialogue;
+    drawText(onPixels, truncated.toUpperCase(), 5, DISPLAY_H - 7, 1);
   }
 
   return pixelsTo1BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
