@@ -1,22 +1,19 @@
 /**
- * Voir-tchi BMP Renderer v2
+ * Voir-tchi BMP Renderer v3
  * 
- * Even G1 display: 640×200, 1-bit (green on black).
- * - Bit = 1 → pixel ON (green on glasses)
- * - Bit = 0 → pixel OFF (black/transparent on glasses)
+ * Even G1 hardware: 640×200 green monochrome display.
+ * SDK internal format: 576×135 1-bit BMP after conversion.
  * 
- * We render pixel art as large as possible, centered, using the full 640×200 canvas.
- * Background is all zeros (transparent/black).
- * Character pixels are all ones (green on display).
- *
- * MentraOS SDK accepts base64-encoded BMP for showBitmapView().
+ * Strategy: Generate a 24-bit BMP at exactly 576×135.
+ * The SDK reads it with Jimp, sees it's already 576×135, skips padding
+ * (no black fill!), then converts to 1-bit for the glasses.
+ * 
+ * On the glasses: green pixels (non-black in 24-bit) = ON, black pixels = OFF (transparent).
+ * We use RGB (0, 255, 0) for character pixels → green on glasses.
+ * Background is pure black (0, 0, 0) → transparent on glasses (pixel off).
  */
 
-import { BitmapUtils } from '@mentra/sdk';
-
 // ─── Sprite Definitions ───
-// Same pixel art from PixelMichael.tsx, but simplified:
-// All character pixels = 1 (green), background = 0 (black)
 
 type Pixel = [number, number];
 
@@ -30,19 +27,11 @@ function rect(x: number, y: number, w: number, h: number): Pixel[] {
   return pixels;
 }
 
-// Base head shape (16x20 grid, origin at 0,0)
-// Head occupies roughly x:3-12, y:0-10
-// Body occupies roughly x:2-13, y:10-19
 const HEAD_BASE: Pixel[] = [
-  // Hair top
   ...rect(5, 0, 5, 1),
-  // Hair mid
   ...rect(4, 1, 7, 1),
-  // Hair wide
   ...rect(3, 2, 9, 1),
-  // Face
   ...rect(3, 3, 9, 7),
-  // Hair overlay on face
   ...rect(3, 3, 3, 2),
   ...rect(3, 4, 2, 1),
 ];
@@ -57,26 +46,17 @@ const SPRITES: Record<string, SpriteFrame> = {
   happy: {
     head: [
       ...HEAD_BASE,
-      // Eyes
       [5, 5], [9, 5],
-      // Happy mouth
       [5, 8], [6, 8], [7, 8], [8, 8], [9, 8],
       [5, 7], [9, 7],
     ],
     body: [
-      // Neck
       ...rect(5, 10, 5, 1),
-      // Shirt
       ...rect(3, 11, 9, 6),
-      // Left arm
       ...rect(2, 12, 1, 3),
-      // Right arm
       ...rect(12, 12, 1, 3),
-      // Left leg
       ...rect(4, 17, 3, 2),
-      // Right leg
       ...rect(8, 17, 3, 2),
-      // Target emoji on shirt
       [6, 13], [7, 13], [6, 14], [7, 14],
     ],
     accessories: [],
@@ -84,12 +64,9 @@ const SPRITES: Record<string, SpriteFrame> = {
   hungry: {
     head: [
       ...HEAD_BASE,
-      // Worried eyes (wider)
       [4, 5], [5, 5], [9, 5], [10, 5],
-      // Open mouth
       [5, 8], [6, 8], [7, 8],
       [5, 9],
-      // Sweat drop
       [11, 3],
     ],
     body: [
@@ -100,21 +77,14 @@ const SPRITES: Record<string, SpriteFrame> = {
       ...rect(4, 17, 3, 2),
       ...rect(8, 17, 3, 2),
     ],
-    accessories: [
-      // Stomach rumble
-      [1, 14], [0, 13],
-      [13, 14], [14, 13],
-    ],
+    accessories: [[1, 14], [0, 13], [13, 14], [14, 13]],
   },
   sad: {
     head: [
       ...HEAD_BASE,
-      // Sad eyes (lower)
       [5, 6], [9, 6],
-      // Sad mouth (down curve)
       [5, 8], [6, 8], [7, 8], [8, 8], [9, 8],
       [5, 9], [9, 9],
-      // Tear
       [10, 6], [10, 7],
     ],
     body: [
@@ -130,12 +100,9 @@ const SPRITES: Record<string, SpriteFrame> = {
   tired: {
     head: [
       ...HEAD_BASE,
-      // Closed eyes (lines)
       [4, 6], [5, 6],
       [9, 6], [10, 6],
-      // Slight mouth
       [6, 8], [7, 8],
-      // Zzz
       [12, 1], [13, 2],
       [12, 0], [13, 1],
     ],
@@ -152,13 +119,9 @@ const SPRITES: Record<string, SpriteFrame> = {
   working: {
     head: [
       ...HEAD_BASE,
-      // Glasses bridge
       ...rect(4, 5, 7, 1),
-      // Eyes behind glasses
       [5, 6], [9, 6],
-      // Glasses sides
       [4, 6], [7, 6], [8, 6], [11, 6],
-      // Determined mouth
       [5, 8], [6, 8], [7, 8], [8, 8], [9, 8],
     ],
     body: [
@@ -169,19 +132,13 @@ const SPRITES: Record<string, SpriteFrame> = {
       ...rect(4, 17, 3, 2),
       ...rect(8, 17, 3, 2),
     ],
-    accessories: [
-      // Laptop
-      [13, 13], [14, 13],
-      [13, 14], [14, 14],
-    ],
+    accessories: [[13, 13], [14, 13], [13, 14], [14, 14]],
   },
   creative: {
     head: [
       ...HEAD_BASE,
-      // Wide eyes
       [4, 5], [5, 5], [9, 5], [10, 5],
       [5, 6], [6, 6], [8, 6], [9, 6],
-      // Big smile
       [5, 7], [10, 7],
       [5, 8], [6, 8], [7, 8], [8, 8], [9, 8],
     ],
@@ -192,29 +149,22 @@ const SPRITES: Record<string, SpriteFrame> = {
       ...rect(12, 12, 1, 3),
       ...rect(4, 17, 3, 2),
       ...rect(8, 17, 3, 2),
-      // Lightbulb on shirt
       [6, 13], [7, 13],
       [6, 14], [7, 14],
     ],
-    accessories: [
-      // Sparkles
-      [0, 0], [15, 1],
-    ],
+    accessories: [[0, 0], [15, 1]],
   },
   dead: {
     head: [
-      // Skull shape (same outline, different fill)
       ...rect(5, 0, 5, 1),
       ...rect(4, 1, 7, 1),
       ...rect(3, 2, 9, 1),
       ...rect(3, 3, 9, 7),
       ...rect(3, 10, 9, 1),
-      // X eyes
       [4, 4], [5, 5],
       [5, 4], [4, 5],
       [8, 4], [9, 5],
       [9, 4], [8, 5],
-      // Flat mouth
       [5, 8], [6, 8], [7, 8], [8, 8], [9, 8],
     ],
     body: [
@@ -225,148 +175,33 @@ const SPRITES: Record<string, SpriteFrame> = {
       ...rect(4, 17, 3, 2),
       ...rect(8, 17, 3, 2),
     ],
-    accessories: [
-      // Ghost wisps
-      [0, 4], [15, 4],
-      [-1, 5], [16, 5],
-    ],
+    accessories: [[0, 4], [15, 4]],
   },
 };
 
-// ─── BMP Generation ───
+// ─── Canvas Config ───
 
-// Even G1 SDK expects 576x135 after padding.
-// The SDK pads with left:50, top:35 by default, so the "inner" image area is:
-//   576 - 50 = 526 wide, 135 - 35 = 100 tall
-// We render at 526x100 with zero padding so the SDK pads it correctly
-// with transparent (black = off) pixels around the character.
-const DISPLAY_W = 526;
-const DISPLAY_H = 100;
+// SDK expects 576×135 — if we match this, no padding = no black rectangle
+const DISPLAY_W = 576;
+const DISPLAY_H = 135;
 
-// Scale: fill the display height
 // Sprite grid is ~16 wide x ~20 tall
-// 100 / 20 = 5px per sprite pixel
-const SPRITE_SCALE = 5;
+// Scale to fill most of the 135px height: 135 / 20 ≈ 6.75 → use 6
+const SPRITE_SCALE = 6;
 
-// Center horizontally in the 526px width
+// Center horizontally and vertically
 const SPRITE_OFFSET_X = Math.floor((DISPLAY_W - 16 * SPRITE_SCALE) / 2);
-const SPRITE_OFFSET_Y = 2;
+const SPRITE_OFFSET_Y = Math.floor((DISPLAY_H - 20 * SPRITE_SCALE) / 2);
 
-/**
- * Render a character state as a 1-bit BMP, base64-encoded.
- * On Even G1: 1 = green pixel ON, 0 = black/transparent pixel OFF.
- */
-export function renderSprite(state: string): string {
-  const sprite = SPRITES[state] || SPRITES.happy;
-  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
+// ─── 24-bit BMP Generation ───
 
-  // Create pixel buffer: 0 = off (black), 1 = on (green)
-  const pixels = new Uint8Array(DISPLAY_W * DISPLAY_H);
-  pixels.fill(0); // Black background
-
-  // Plot sprite pixels (scaled up)
-  for (const [sx, sy] of allPixels) {
-    // Skip out-of-bounds pixels (like the ghost wisps at -1)
-    if (sx < 0 || sy < 0) continue;
-    for (let dx = 0; dx < SPRITE_SCALE; dx++) {
-      for (let dy = 0; dy < SPRITE_SCALE; dy++) {
-        const px = SPRITE_OFFSET_X + sx * SPRITE_SCALE + dx;
-        const py = SPRITE_OFFSET_Y + sy * SPRITE_SCALE + dy;
-        if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H) {
-          pixels[py * DISPLAY_W + px] = 1; // Green ON
-        }
-      }
-    }
-  }
-
-  return pixelsTo1BitBmpBase64(pixels, DISPLAY_W, DISPLAY_H);
-}
-
-/**
- * Render stats bars below the character (for full-screen view).
- * Top half = character, bottom 60px = stat bars.
- */
-export function renderSpriteWithStats(state: string, stats: { hunger: number; happiness: number; energy: number; creativity: number }): string {
-  const sprite = SPRITES[state] || SPRITES.happy;
-  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
-
-  const pixels = new Uint8Array(DISPLAY_W * DISPLAY_H);
-  pixels.fill(0);
-
-  // Draw character smaller — scale 7, offset to top portion
-  const charScale = 7;
-  const charOffsetX = Math.floor((DISPLAY_W - 16 * charScale) / 2);
-  const charOffsetY = 5;
-
-  for (const [sx, sy] of allPixels) {
-    if (sx < 0 || sy < 0) continue;
-    for (let dx = 0; dx < charScale; dx++) {
-      for (let dy = 0; dy < charScale; dy++) {
-        const px = charOffsetX + sx * charScale + dx;
-        const py = charOffsetY + sy * charScale + dy;
-        if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H) {
-          pixels[py * DISPLAY_W + px] = 1;
-        }
-      }
-    }
-  }
-
-  // Draw stat bars in bottom section
-  const barStartY = 80;
-  const barHeight = 4;
-  const barMaxWidth = 100;
-  const barGap = 5;
-
-  const bars = [
-    { value: stats.hunger, y: barStartY },
-    { value: stats.happiness, y: barStartY + barGap },
-    { value: stats.energy, y: barStartY + barGap * 2 },
-    { value: stats.creativity, y: barStartY + barGap * 3 },
-  ];
-
-  const barX = Math.floor((DISPLAY_W - barMaxWidth) / 2); // Center bars
-
-  for (const bar of bars) {
-    // Bar outline
-    for (let x = barX; x < barX + barMaxWidth; x++) {
-      for (let y = bar.y; y < bar.y + barHeight; y++) {
-        if (y < DISPLAY_H && x < DISPLAY_W) {
-          pixels[y * DISPLAY_W + x] = 1;
-        }
-      }
-    }
-    // Clear inner (make it hollow — outline only)
-    for (let x = barX + 1; x < barX + barMaxWidth - 1; x++) {
-      for (let y = bar.y + 1; y < bar.y + barHeight - 1; y++) {
-        if (y < DISPLAY_H && x < DISPLAY_W) {
-          pixels[y * DISPLAY_W + x] = 0;
-        }
-      }
-    }
-    // Fill bar
-    const fillW = Math.max(1, Math.floor((bar.value / 100) * (barMaxWidth - 2)));
-    for (let x = barX + 1; x < barX + 1 + fillW; x++) {
-      for (let y = bar.y + 1; y < bar.y + barHeight - 1; y++) {
-        if (y < DISPLAY_H && x < DISPLAY_W) {
-          pixels[y * DISPLAY_W + x] = 1;
-        }
-      }
-    }
-  }
-
-  return pixelsTo1BitBmpBase64(pixels, DISPLAY_W, DISPLAY_H);
-}
-
-// ─── BMP File Format ───
-
-function pixelsTo1BitBmpBase64(pixels: Uint8Array, width: number, height: number): string {
-  // 1-bit BMP: palette index 0 = black (OFF), palette index 1 = green (ON)
-  // pixels[]: 0 = OFF, 1 = ON
-  // BMP stores bottom-up, each row padded to 4-byte boundary
-  
-  const rowSize = Math.ceil(width / 32) * 4;
+function pixelsTo24BitBmpBase64(onPixels: Set<string>, width: number, height: number): string {
+  // 24-bit BMP: 3 bytes per pixel (BGR), rows padded to 4-byte boundary
+  const rowBytes = width * 3;
+  const rowPadding = (4 - (rowBytes % 4)) % 4;
+  const rowSize = rowBytes + rowPadding;
   const pixelDataSize = rowSize * height;
-  const fileSize = 14 + 40 + 8 + pixelDataSize;
+  const fileSize = 14 + 40 + pixelDataSize; // No color table for 24-bit
 
   const buf = Buffer.alloc(fileSize, 0);
   let offset = 0;
@@ -375,56 +210,145 @@ function pixelsTo1BitBmpBase64(pixels: Uint8Array, width: number, height: number
   buf.write('BM', offset); offset += 2;
   buf.writeUInt32LE(fileSize, offset); offset += 4;
   offset += 4; // Reserved
-  buf.writeUInt32LE(62, offset); offset += 4; // Pixel data offset (14+40+8)
+  buf.writeUInt32LE(54, offset); offset += 4; // Pixel data offset (14+40)
 
-  // DIB header (40 bytes)
+  // DIB header (BITMAPINFOHEADER, 40 bytes)
   buf.writeUInt32LE(40, offset); offset += 4;
   buf.writeInt32LE(width, offset); offset += 4;
   buf.writeInt32LE(height, offset); offset += 4; // Positive = bottom-up
   buf.writeUInt16LE(1, offset); offset += 2; // Planes
-  buf.writeUInt16LE(1, offset); offset += 2; // Bits per pixel
-  buf.writeUInt32LE(0, offset); offset += 4; // No compression
-  buf.writeUInt32LE(pixelDataSize, offset); offset += 4; // Image size
-  offset += 16; // Skip resolution + colors
+  buf.writeUInt16LE(24, offset); offset += 2; // Bits per pixel = 24
+  buf.writeUInt32LE(0, offset); offset += 4; // No compression (BI_RGB)
+  buf.writeUInt32LE(pixelDataSize, offset); offset += 4;
+  offset += 16; // Skip resolution (4+4) and colors (4+4)
 
-  // Color table: 2 entries for 1-bit
-  // Index 0 = black (OFF) — matches pixel value 0
-  // Index 1 = green (ON) — matches pixel value 1
-  // On Even G1, both green and white palette entries render as green.
-  // We use green (0,255,0) for ON pixels.
-  buf.writeUInt8(0, offset);   // B
-  buf.writeUInt8(0, offset+1); // G
-  buf.writeUInt8(0, offset+2); // R
-  buf.writeUInt8(0, offset+3); // Reserved
-  offset += 4; // Index 0: Black
-  
-  buf.writeUInt8(0, offset);   // B
-  buf.writeUInt8(255, offset+1); // G  
-  buf.writeUInt8(0, offset+2); // R
-  buf.writeUInt8(0, offset+3); // Reserved
-  offset += 4; // Index 1: Green
-
-  // Pixel data (bottom-up)
+  // Pixel data (bottom-up, BGR order)
   for (let y = height - 1; y >= 0; y--) {
-    for (let byteIdx = 0; byteIdx < rowSize; byteIdx++) {
-      let byteVal = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = byteIdx * 8 + bit;
-        if (x < width) {
-          const pixelVal = pixels[y * width + x];
-          byteVal |= (pixelVal << (7 - bit));
-        }
+    for (let x = 0; x < width; x++) {
+      const key = `${x},${y}`;
+      if (onPixels.has(key)) {
+        // Character pixel: green (B=0, G=255, R=0)
+        buf[offset++] = 0;   // B
+        buf[offset++] = 255; // G
+        buf[offset++] = 0;   // R
+      } else {
+        // Background: black (transparent on glasses)
+        buf[offset++] = 0;
+        buf[offset++] = 0;
+        buf[offset++] = 0;
       }
-      buf[offset++] = byteVal;
+    }
+    // Row padding
+    for (let p = 0; p < rowPadding; p++) {
+      buf[offset++] = 0;
     }
   }
 
   return buf.toString('base64');
 }
 
-/**
- * Pre-render all sprite states as base64 BMPs.
- */
+// ─── Public API ───
+
+export function renderSprite(state: string): string {
+  const sprite = SPRITES[state] || SPRITES.happy;
+  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
+
+  const onPixels = new Set<string>();
+
+  for (const [sx, sy] of allPixels) {
+    if (sx < 0 || sy < 0) continue;
+    for (let dx = 0; dx < SPRITE_SCALE; dx++) {
+      for (let dy = 0; dy < SPRITE_SCALE; dy++) {
+        const px = SPRITE_OFFSET_X + sx * SPRITE_SCALE + dx;
+        const py = SPRITE_OFFSET_Y + sy * SPRITE_SCALE + dy;
+        if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H) {
+          onPixels.add(`${px},${py}`);
+        }
+      }
+    }
+  }
+
+  return pixelsTo24BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
+}
+
+export function renderSpriteWithStats(
+  state: string,
+  stats: { hunger: number; happiness: number; energy: number; creativity: number }
+): string {
+  const sprite = SPRITES[state] || SPRITES.happy;
+  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
+
+  const onPixels = new Set<string>();
+
+  // Draw character (slightly smaller to make room for bars)
+  const charScale = 5;
+  const charOffsetX = Math.floor((DISPLAY_W - 16 * charScale) / 2);
+  const charOffsetY = 8;
+
+  for (const [sx, sy] of allPixels) {
+    if (sx < 0 || sy < 0) continue;
+    for (let dx = 0; dx < charScale; dx++) {
+      for (let dy = 0; dy < charScale; dy++) {
+        const px = charOffsetX + sx * charScale + dx;
+        const py = charOffsetY + sy * charScale + dy;
+        if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H) {
+          onPixels.add(`${px},${py}`);
+        }
+      }
+    }
+  }
+
+  // Draw stat bars
+  const barStartY = 115;
+  const barHeight = 6;
+  const barMaxWidth = 150;
+  const barGap = 8;
+  const barX = Math.floor((DISPLAY_W - barMaxWidth) / 2);
+
+  const bars = [
+    { value: stats.hunger, y: barStartY },
+    { value: stats.happiness, y: barStartY + barGap },
+  ];
+
+  // Draw two bars side by side (hunger + happiness top, energy + creativity bottom)
+  const barW2 = 70;
+  const gap2 = 10;
+  const barX2L = Math.floor((DISPLAY_W - barW2 * 2 - gap2) / 2);
+  const barX2R = barX2L + barW2 + gap2;
+
+  const allBars = [
+    { value: stats.hunger, x: barX2L, label: 'H' },
+    { value: stats.happiness, x: barX2R, label: 'P' },
+    { value: stats.energy, x: barX2L, y: barStartY + barGap, label: 'E' },
+    { value: stats.creativity, x: barX2R, y: barStartY + barGap, label: 'C' },
+  ];
+
+  for (const bar of allBars) {
+    const by = (bar as any).y || barStartY;
+    // Outline
+    for (let x = bar.x; x < bar.x + barW2; x++) {
+      for (let y = by; y < by + barHeight; y++) {
+        if (y < DISPLAY_H && x < DISPLAY_W) onPixels.add(`${x},${y}`);
+      }
+    }
+    // Clear inner
+    for (let x = bar.x + 1; x < bar.x + barW2 - 1; x++) {
+      for (let y = by + 1; y < by + barHeight - 1; y++) {
+        if (y < DISPLAY_H && x < DISPLAY_W) onPixels.delete(`${x},${y}`);
+      }
+    }
+    // Fill
+    const fillW = Math.max(1, Math.floor((bar.value / 100) * (barW2 - 2)));
+    for (let x = bar.x + 1; x < bar.x + 1 + fillW; x++) {
+      for (let y = by + 1; y < by + barHeight - 1; y++) {
+        if (y < DISPLAY_H && x < DISPLAY_W) onPixels.add(`${x},${y}`);
+      }
+    }
+  }
+
+  return pixelsTo24BitBmpBase64(onPixels, DISPLAY_W, DISPLAY_H);
+}
+
 export function prerenderAllSprites(): Record<string, string> {
   const cache: Record<string, string> = {};
   for (const state of Object.keys(SPRITES)) {
