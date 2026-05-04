@@ -50,7 +50,7 @@ class VoirTchiServer extends AppServer {
           'Say "revive" to bring him back!',
           { durationMs: 30000 }
         );
-        session.layouts.showBitmapView(spriteCache.dead || '', { padding: { left: 0, top: 0 } });
+        showCharacterText(session, 'dead');
       },
       onLowStat: (stat, value) => {
         const emoji = stat === 'hunger' ? '🍖' : stat === 'happiness' ? '😊' : '⚡';
@@ -62,16 +62,11 @@ class VoirTchiServer extends AppServer {
       },
     });
 
-    // ─── Show welcome ───
-
-    session.layouts.showDoubleTextWall(
-      '🐣 Voir-tchi',
-      'Say feed, play, coffee, work, sleep, or love!',
-      { durationMs: 8000 }
-    );
+    // Show welcome
+    session.layouts.showTextWall('🐣 Voir-tchi\nSay: feed, play, coffee, work, sleep, love', { durationMs: 8000 });
 
     const initialState = game.getStats();
-    session.layouts.showBitmapView(spriteCache[initialState.state] || spriteCache.happy, { padding: { left: 0, top: 0 } });
+    showCharacterText(session, initialState.state);
     updateDashboard(session, game.stats, initialState.state);
 
     // ─── Start game tick ───
@@ -143,16 +138,26 @@ function isAction(text: string): boolean {
 
 // ─── Display Helpers ───
 
+function showCharacterText(session: AppSession, state: string): void {
+  const emojis: Record<string, string> = {
+    happy: '😊', hungry: '😰', sad: '😢', tired: '😫',
+    working: '💻', creative: '💡', dead: '💀',
+  };
+  const emoji = emojis[state] || '😊';
+  session.layouts.showDoubleTextWall({
+    topText: `${emoji} Michael-tchi`,
+    bottomText: `Mood: ${state}`,
+  });
+}
+
 function showActionResult(session: AppSession, result: any): void {
   const { state, dialogue, action } = result;
 
-  // Show pixel art
-  const bmp = spriteCache[state] || spriteCache.happy;
-  session.layouts.showBitmapView(bmp, { padding: { left: 0, top: 0 } });
+  // Show character mood
+  showCharacterText(session, state);
 
-  // Show dialogue as text overlay
+  // Show dialogue
   if (action === 'status') {
-    // Status gets the formatted text view
     session.layouts.showTextWall(dialogue, { durationMs: 8000 });
   } else if (state === 'dead') {
     session.layouts.showReferenceCard(
@@ -161,12 +166,10 @@ function showActionResult(session: AppSession, result: any): void {
       { durationMs: 30000 }
     );
   } else {
-    // Action response — short and punchy for glasses
-    session.layouts.showDoubleTextWall(
-      getActionEmoji(action),
-      dialogue,
-      { durationMs: 5000 }
-    );
+    session.layouts.showDoubleTextWall({
+      topText: dialogue,
+      bottomText: `Mood: ${state}`,
+    });
   }
 }
 
