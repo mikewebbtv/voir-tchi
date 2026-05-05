@@ -1,13 +1,13 @@
 /**
- * Voir-tchi BMP Renderer v6
+ * Voir-tchi BMP Renderer v10
  * 
- * 3-column layout for Even G1 (526×100 visible area):
- * - Col 1 (left): Character sprite + mood label
- * - Col 2 (middle): Action buttons (full column width, stacked vertically)
- * - Col 3 (right): Stats bars (full column width)
- * - Bottom: Dialogue line
+ * CUTE pixel character: big round head, tiny squat body, stubby arms & legs
+ * Very expressive face with big eyes. Retro pixel art style.
  * 
- * All text uses 2px font for readability on glasses.
+ * Grid: 16×24 (head takes up most of the height, body is squat)
+ * 
+ * Layout: 3-col (character | dialogue+buttons | stats)
+ * Visible area: 526×100 after SDK padding
  */
 
 type Pixel = [number, number];
@@ -22,181 +22,229 @@ function rect(x: number, y: number, w: number, h: number): Pixel[] {
   return pixels;
 }
 
-// ─── Sprite Definitions ───
-// Redesigned character: rounder head, bigger eyes, fuller hair, proper body
-// Grid is 16 wide × 22 tall (extra 2 rows for feet)
+// ─── CUTE CHARACTER SPRITES ───
+// 16 wide × 24 tall
+// Head: rows 0-15 (big, round, expressive)
+// Body: rows 16-23 (squat, stubby arms & legs)
 
-type PixelRow = [number, number]; // [x, y]
-
-function rect(x: number, y: number, w: number, h: number): PixelRow[] {
-  const pixels: PixelRow[] = [];
-  for (let dx = 0; dx < w; dx++) {
-    for (let dy = 0; dy < h; dy++) {
-      pixels.push([x + dx, y + dy]);
-    }
-  }
-  return pixels;
-}
-
-// Shared head shape - rounder, fuller hair
-const HEAD: PixelRow[] = [
-  // Hair top (wide, rounded)
-  ...rect(5, 0, 6, 1),
-  ...rect(4, 1, 8, 1),
-  ...rect(3, 2, 10, 1),
-  ...rect(3, 3, 10, 1),
-  // Face (slightly narrower)
-  ...rect(3, 4, 10, 1),  // Forehead
-  ...rect(4, 5, 8, 1),   // Eye level
-  ...rect(4, 6, 8, 1),   // Below eyes
-  ...rect(4, 7, 8, 1),   // Cheeks
-  ...rect(5, 8, 6, 1),   // Mouth
-  ...rect(5, 9, 6, 1),   // Chin
-  ...rect(6, 10, 4, 1),  // Jaw
+// Shared HEAD outline - big round head with spiky hair
+const HEAD_OUTLINE: Pixel[] = [
+  // Spiky hair
+  [7, 0], [6, 1], [8, 1], [5, 2], [9, 2],
+  // Hair mass (wide)
+  ...rect(4, 3, 8, 1),
+  ...rect(3, 4, 10, 1),
+  // Head sides (round curve down)
+  ...rect(3, 5, 10, 1),
+  ...rect(2, 6, 12, 1),
+  ...rect(2, 7, 12, 1),
+  ...rect(2, 8, 12, 1),
+  ...rect(2, 9, 12, 1),
+  ...rect(2, 10, 12, 1),
+  ...rect(3, 11, 10, 1),
+  ...rect(3, 12, 10, 1),
+  ...rect(4, 13, 8, 1),
+  ...rect(5, 14, 6, 1),
+  // Ears
+  [1, 7], [1, 8],
+  [14, 7], [14, 8],
 ];
 
-// Shared body
-const BODY: PixelRow[] = [
-  // Neck
-  ...rect(6, 11, 4, 1),
-  // Shirt (wider shoulders)
-  ...rect(4, 12, 8, 1),
-  ...rect(3, 13, 10, 1),
-  ...rect(3, 14, 10, 2),
-  ...rect(3, 16, 10, 1),
-  // Arms
-  ...rect(2, 13, 1, 3),  // Left arm
-  ...rect(13, 13, 1, 3), // Right arm
-  // Legs
-  ...rect(5, 17, 3, 2),  // Left leg
-  ...rect(5, 19, 3, 2),  // Left foot
-  ...rect(8, 17, 3, 2),  // Right leg  
-  ...rect(8, 19, 3, 2),  // Right foot
+// Shared SQUAT body with arms & legs
+const BODY_BASE: Pixel[] = [
+  // Neck (short)
+  ...rect(6, 15, 4, 1),
+  // Body (squat, wide)
+  ...rect(4, 16, 8, 1),   // Shoulders
+  ...rect(3, 17, 10, 2),  // Torso (wide & short)
+  ...rect(4, 19, 8, 1),   // Belt/waist
+  // Left arm (stubby, sticking out)
+  [2, 16], [1, 17], [1, 18], [2, 18],
+  // Right arm (stubby, sticking out)
+  [13, 16], [14, 17], [14, 18], [13, 18],
+  // Left leg (short, stubby)
+  ...rect(5, 20, 2, 2),
+  ...rect(4, 22, 3, 2),   // Foot (wider)
+  // Right leg (short, stubby)
+  ...rect(9, 20, 2, 2),
+  ...rect(9, 22, 3, 2),   // Foot (wider)
   // Target emoji on shirt
-  [7, 14], [8, 14],
-  [7, 15], [8, 15],
+  [6, 17], [7, 17], [8, 17],
+  [6, 18], [7, 18], [8, 18],
 ];
 
-interface SpriteFrame { head: PixelRow[]; body: PixelRow[]; accessories: PixelRow[]; }
+interface SpriteFrame { head: Pixel[]; body: Pixel[]; accessories: Pixel[]; }
 
 const SPRITES: Record<string, SpriteFrame> = {
   happy: {
     head: [
-      ...HEAD,
-      // Big round eyes
-      [5, 5], [6, 5], [9, 5], [10, 5],
-      [5, 6], [10, 6],  // Eye outline corners
-      // Happy mouth (wide smile)
-      ...rect(6, 8, 4, 1),
-      [5, 7], [11, 7],  // Smile corners
+      ...HEAD_OUTLINE,
+      // Big cute eyes (3px each, sparkly)
+      [4, 7], [5, 7], [6, 7],   // Left eye top
+      [4, 8], [5, 8], [6, 8],   // Left eye mid
+      [5, 9],                    // Left pupil
+      [9, 7], [10, 7], [11, 7], // Right eye top
+      [9, 8], [10, 8], [11, 8], // Right eye mid
+      [10, 9],                   // Right pupil
+      // Blush cheeks
+      [3, 10], [12, 10],
+      // Happy mouth (wide curved smile)
+      [5, 11], [6, 11], [7, 11], [8, 11], [9, 11], [10, 11],
+      [5, 12], [10, 12],
     ],
-    body: BODY,
+    body: [
+      ...BODY_BASE,
+      // Arms up slightly (celebrating)
+      [0, 16], [0, 15],
+      [15, 16], [15, 15],
+    ],
     accessories: [],
   },
   hungry: {
     head: [
-      ...HEAD,
-      // Worried big eyes
-      [5, 5], [6, 5], [7, 5], [9, 5], [10, 5], [11, 5],
-      [5, 6], [11, 6],
-      // Open mouth (small o)
-      [7, 8], [8, 8],
-      [7, 9], [8, 9],
+      ...HEAD_OUTLINE,
+      // Big worried eyes
+      [4, 7], [5, 7], [6, 7],
+      [4, 8], [5, 8], [6, 8],
+      [5, 9],
+      [9, 7], [10, 7], [11, 7],
+      [9, 8], [10, 8], [11, 8],
+      [10, 9],
+      // No blush
+      // Wavy mouth (worried)
+      [6, 11], [7, 11], [8, 11], [9, 11],
+      [6, 12], [9, 12],
+      [7, 12], [8, 12],
       // Sweat drop
-      [12, 3],
+      [13, 5], [13, 6],
     ],
-    body: BODY,
-    accessories: [],
+    body: BODY_BASE,
+    accessories: [
+      // Rumble lines
+      [1, 20], [0, 21],
+    ],
   },
   sad: {
     head: [
-      ...HEAD,
-      // Sad eyes (looking down)
-      [5, 6], [6, 6], [9, 6], [10, 6],
-      // Sad mouth (frown)
-      [6, 8], [9, 8],
-      [5, 9], [10, 9],
+      ...HEAD_OUTLINE,
+      // Droopy sad eyes
+      [4, 8], [5, 8], [6, 8],
+      [4, 9], [5, 9], [6, 9],
+      [5, 10],
+      [9, 8], [10, 8], [11, 8],
+      [9, 9], [10, 9], [11, 9],
+      [10, 10],
+      // Sad mouth (downturned)
+      [6, 12], [7, 12], [8, 12], [9, 12],
+      [5, 11], [10, 11],
       // Tear
-      [11, 6], [11, 7],
+      [3, 9], [3, 10], [3, 11],
     ],
-    body: BODY,
+    body: BODY_BASE,
     accessories: [],
   },
   tired: {
     head: [
-      ...HEAD,
-      // Closed eyes (horizontal lines)
-      [5, 5], [6, 5], [7, 5],
-      [9, 5], [10, 5], [11, 5],
-      // Slight mouth
-      [7, 8], [8, 8],
-      // Zzz floating
-      [12, 0], [13, 0],
-      [13, 1], [14, 1],
+      ...HEAD_OUTLINE,
+      // Half-closed eyes (lines)
+      [4, 8], [5, 8], [6, 8],
+      [9, 8], [10, 8], [11, 8],
+      // Small mouth (yawning)
+      [6, 11], [7, 11], [8, 11], [9, 11],
+      [6, 12], [9, 12],
+      [7, 12], [8, 12],
+      // Zzz floating above
+      [12, 1], [13, 1],
+      [13, 2], [14, 2],
+      [14, 3], [15, 3],
     ],
-    body: BODY,
+    body: BODY_BASE,
     accessories: [],
   },
   working: {
     head: [
-      ...HEAD,
-      // Glasses
-      ...rect(5, 5, 3, 2),  // Left lens
-      ...rect(9, 5, 3, 2),  // Right lens
-      [8, 5],              // Bridge
-      // Eyes through glasses
-      [6, 6], [10, 6],
-      // Determined mouth
-      ...rect(6, 8, 4, 1),
+      ...HEAD_OUTLINE,
+      // Glasses (square frames)
+      ...rect(3, 7, 4, 3),   // Left lens outline
+      ...rect(9, 7, 4, 3),   // Right lens outline
+      [7, 8], [8, 8],        // Bridge
+      // Eyes behind glasses
+      [4, 8], [5, 8],        // Left pupil
+      [10, 8], [11, 8],      // Right pupil
+      // Determined mouth (straight line)
+      [6, 11], [7, 11], [8, 11], [9, 11],
     ],
-    body: BODY,
+    body: BODY_BASE,
     accessories: [
-      // Laptop (to the right)
-      ...rect(14, 13, 2, 1),
-      ...rect(14, 14, 2, 2),
+      // Laptop to the right
+      ...rect(14, 17, 2, 1),
+      ...rect(14, 18, 2, 2),
     ],
   },
   creative: {
     head: [
-      ...HEAD,
-      // Wide excited eyes
-      [5, 5], [6, 5], [7, 5], [9, 5], [10, 5], [11, 5],
-      [5, 6], [7, 6], [9, 6], [11, 6],
-      // Big grin
-      [5, 7], [11, 7],
-      ...rect(6, 8, 4, 1),
+      ...HEAD_OUTLINE,
+      // Wide sparkly eyes (extra big!)
+      [4, 7], [5, 7], [6, 7],
+      [4, 8], [5, 8], [6, 8],
+      [4, 9], [5, 9], [6, 9],
+      [9, 7], [10, 7], [11, 7],
+      [9, 8], [10, 8], [11, 8],
+      [9, 9], [10, 9], [11, 9],
+      // Star pupils
+      [5, 8], [10, 8],
+      // Huge grin
+      [4, 11], [5, 11], [6, 11], [7, 11], [8, 11], [9, 11], [10, 11],
+      [4, 12], [10, 12],
+      [5, 12], [6, 12], [7, 12], [8, 12], [9, 12],
+      // Blush
+      [3, 10], [12, 10],
     ],
-    body: BODY,
+    body: [
+      ...BODY_BASE,
+      // Arms up (excited)
+      [0, 15], [0, 14],
+      [15, 15], [15, 14],
+    ],
     accessories: [
-      // Sparkles
-      [0, 0], [1, 1],
+      // Sparkles around head
+      [0, 3], [1, 4],
       [14, 0], [15, 1],
     ],
   },
   dead: {
     head: [
-      // Skull shape (same outline, hollow)
+      // Ghostly head outline (no hair detail)
       ...rect(5, 0, 6, 1),
       ...rect(4, 1, 8, 1),
       ...rect(3, 2, 10, 1),
-      ...rect(3, 3, 10, 1),
-      ...rect(3, 4, 10, 1),
-      ...rect(4, 5, 8, 1),
-      ...rect(4, 6, 8, 1),
-      ...rect(4, 7, 8, 1),
-      ...rect(5, 8, 6, 1),
-      ...rect(5, 9, 6, 1),
-      ...rect(6, 10, 4, 1),
+      ...rect(2, 3, 12, 1),
+      ...rect(2, 4, 12, 1),
+      ...rect(2, 5, 12, 1),
+      ...rect(2, 6, 12, 1),
+      ...rect(2, 7, 12, 1),
+      ...rect(2, 8, 12, 1),
+      ...rect(2, 9, 12, 1),
+      ...rect(2, 10, 12, 1),
+      ...rect(3, 11, 10, 1),
+      ...rect(3, 12, 10, 1),
+      ...rect(4, 13, 8, 1),
+      ...rect(5, 14, 6, 1),
       // X eyes
-      [5, 4], [7, 6],
-      [7, 4], [5, 6],
-      [9, 4], [11, 6],
-      [11, 4], [9, 6],
+      [4, 7], [6, 9],
+      [6, 7], [4, 9],
+      [9, 7], [11, 9],
+      [11, 7], [9, 9],
       // Flat mouth
-      ...rect(6, 8, 4, 1),
+      [6, 11], [7, 11], [8, 11], [9, 11],
     ],
-    body: BODY,
-    accessories: [],
+    body: [
+      ...BODY_BASE.slice(0, -6), // No target emoji
+    ],
+    accessories: [
+      // Ghost wisp
+      [0, 5], [15, 5],
+    ],
   },
 };
 
@@ -277,10 +325,10 @@ export function renderDisplay(
   const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
 
-  // ═══ COL 1: Character (left) ═══
+  // ═══ COL 1: Cute character (left) ═══
   const CHAR_SCALE = 4;
   const CHAR_X = 2;
-  const CHAR_Y = 3;
+  const CHAR_Y = 0;
 
   for (const [sx, sy] of allPixels) {
     if (sx < 0 || sy < 0) continue;
@@ -295,11 +343,9 @@ export function renderDisplay(
     }
   }
 
-  // Mood label is now in COL2, not under character
-
-  // ═══ COL 2: Middle (dialogue on top, buttons at bottom) ═══
+  // ═══ COL 2: Middle (dialogue top, buttons bottom) ═══
   const COL2_X = 72;
-  const COL3_X = 290;  // Stats start (narrower right column)
+  const COL3_X = 290;
 
   // Mood label + dialogue at top of middle column
   const moodLabels: Record<string, string> = {
@@ -308,11 +354,9 @@ export function renderDisplay(
   };
   drawText(onPixels, moodLabels[state] || 'HAPPY', COL2_X, 3, 2);
 
-  // Dialogue text below mood label
   if (dialogue) {
     const maxLineChars = Math.floor((COL3_X - COL2_X) / 8);
     const upper = dialogue.toUpperCase();
-    // Word-wrap into lines
     const words = upper.split(' ');
     const lines: string[] = [];
     let currentLine = '';
@@ -325,7 +369,6 @@ export function renderDisplay(
       }
     }
     if (currentLine) lines.push(currentLine.trim());
-    // Show up to 4 lines of dialogue
     let dialogueY = 16;
     for (let i = 0; i < Math.min(lines.length, 4); i++) {
       drawText(onPixels, lines[i], COL2_X, dialogueY, 2);
@@ -333,24 +376,22 @@ export function renderDisplay(
     }
   }
 
-  // Action buttons at BOTTOM of middle column: 3 cols × 2 rows
+  // Action buttons at BOTTOM: 3 cols × 2 rows
   const actions = state === 'dead' ? ['REVIVE'] : ['FEED', 'PLAY', 'COFFEE', 'WORK', 'SLEEP', 'LOVE'];
-  const COL2_W = COL3_X - COL2_X;  // Total middle column width
-  const btnW = Math.floor((COL2_W - 12) / 3);  // 3 columns with 6px gaps
+  const COL2_W = COL3_X - COL2_X;
+  const btnW = Math.floor((COL2_W - 12) / 3);
   const btnH = 14;
   const btnGapX = 6;
   const btnGapY = 3;
-  const btnStartY = DISPLAY_H - 2 * btnH - btnGapY - 4;  // Anchor to bottom with margin
+  const btnStartY = DISPLAY_H - 2 * btnH - btnGapY - 4;
 
   for (let i = 0; i < actions.length; i++) {
     const col = i % 3;
     const row = Math.floor(i / 3);
     const bx = COL2_X + col * (btnW + btnGapX);
     const by = btnStartY + row * (btnH + btnGapY);
-
     if (by + btnH > DISPLAY_H) break;
 
-    // Button outline
     for (let px = bx; px < bx + btnW; px++) {
       onPixels.add(`${px},${by}`);
       onPixels.add(`${px},${by + btnH - 1}`);
@@ -359,15 +400,14 @@ export function renderDisplay(
       onPixels.add(`${bx},${py}`);
       onPixels.add(`${bx + btnW - 1},${py}`);
     }
-    // Label centered
     const labelW = actions[i].length * 4 * 2;
     const labelX = bx + Math.floor((btnW - labelW) / 2);
     drawText(onPixels, actions[i], labelX, by + 4, 2);
   }
 
-  // ═══ COL 3: Stats (right, narrow column) ═══
+  // ═══ COL 3: Stats (right) ═══
   const barW = DISPLAY_W - COL3_X - 20;
-  const barH = 8;  // Smaller bars to fit all 4
+  const barH = 8;
   const barGap = 3;
   let statY = 2;
 
@@ -393,12 +433,15 @@ export function renderSprite(state: string): string {
   const sprite = SPRITES[state] || SPRITES.happy;
   const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
+  const scale = 4;
+  const ox = Math.floor((DISPLAY_W - 16 * scale) / 2);
+  const oy = Math.floor((DISPLAY_H - 24 * scale) / 2);
   for (const [sx, sy] of allPixels) {
     if (sx < 0 || sy < 0) continue;
-    for (let dx = 0; dx < 6; dx++) {
-      for (let dy = 0; dy < 6; dy++) {
-        const px = Math.floor((DISPLAY_W - 16 * 6) / 2) + sx * 6 + dx;
-        const py = Math.floor((DISPLAY_H - 20 * 6) / 2) + sy * 6 + dy;
+    for (let dx = 0; dx < scale; dx++) {
+      for (let dy = 0; dy < scale; dy++) {
+        const px = ox + sx * scale + dx;
+        const py = oy + sy * scale + dy;
         if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H) {
           onPixels.add(`${px},${py}`);
         }
@@ -415,15 +458,12 @@ function pixelsTo1BitBmpBase64(onPixels: Set<string>, width: number, height: num
   const rowSize = Math.ceil(rowBits / 32) * 4;
   const pixelDataSize = rowSize * height;
   const fileSize = 14 + 40 + 8 + pixelDataSize;
-
   const buf = Buffer.alloc(fileSize, 0);
   let offset = 0;
-
   buf.write('BM', offset); offset += 2;
   buf.writeUInt32LE(fileSize, offset); offset += 4;
   offset += 4;
   buf.writeUInt32LE(62, offset); offset += 4;
-
   buf.writeUInt32LE(40, offset); offset += 4;
   buf.writeInt32LE(width, offset); offset += 4;
   buf.writeInt32LE(height, offset); offset += 4;
@@ -435,31 +475,24 @@ function pixelsTo1BitBmpBase64(onPixels: Set<string>, width: number, height: num
   buf.writeInt32LE(2835, offset); offset += 4;
   buf.writeUInt32LE(2, offset); offset += 4;
   buf.writeUInt32LE(0, offset); offset += 4;
-
   offset += 4; // Index 0: black
   buf.writeUInt8(0, offset); buf.writeUInt8(255, offset+1); buf.writeUInt8(0, offset+2); buf.writeUInt8(0, offset+3);
   offset += 4; // Index 1: green
-
   for (let y = height - 1; y >= 0; y--) {
     for (let byteIdx = 0; byteIdx < rowSize; byteIdx++) {
       let byteVal = 0;
       for (let bit = 0; bit < 8; bit++) {
         const x = byteIdx * 8 + bit;
-        if (x < width && onPixels.has(`${x},${y}`)) {
-          byteVal |= (1 << (7 - bit));
-        }
+        if (x < width && onPixels.has(`${x},${y}`)) byteVal |= (1 << (7 - bit));
       }
       buf[offset++] = byteVal;
     }
   }
-
   return buf.toString('base64');
 }
 
 export function prerenderAllSprites(): Record<string, string> {
   const cache: Record<string, string> = {};
-  for (const state of Object.keys(SPRITES)) {
-    cache[state] = renderSprite(state);
-  }
+  for (const state of Object.keys(SPRITES)) cache[state] = renderSprite(state);
   return cache;
 }
