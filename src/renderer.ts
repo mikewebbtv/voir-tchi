@@ -1,16 +1,16 @@
 /**
- * Voir-tchi BMP Renderer v11
+ * Voir-tchi BMP Renderer v12
  * 
- * KEY INSIGHT for 1-bit glasses display:
- * Everything is either ON (green) or OFF (transparent).
- * You CANNOT draw a filled head with features "inside" — they all merge into one blob.
+ * SPACE INVADERS STYLE character:
+ * - Square head with blocky protrusions (antennae/helmet)
+ * - Two small square eyes, rectangular nose, wide mouth
+ * - Symmetrical, front-facing, minimal
+ * - Bright green on pure black, 8-bit retro
+ * - Thick geometric outlines, solid shapes only
  * 
- * SOLUTION: Draw the head as OUTLINE ONLY. Face features (eyes, mouth) are
- * drawn as separate green pixels inside the hollow head outline.
- * This makes features clearly visible on the 1-bit display.
- * 
- * Layout: 3-col (character | dialogue+buttons | stats)
- * Visible area: 526×100 after SDK padding
+ * Grid: 16×24, scale 4x
+ * Head is OUTLINE (thick border), features are SOLID blocks inside
+ * Body is simple geometric shapes below
  */
 
 type Pixel = [number, number];
@@ -25,216 +25,331 @@ function rect(x: number, y: number, w: number, h: number): Pixel[] {
   return pixels;
 }
 
-// Outline helper: returns only the border pixels of a rectangle
-function rectOutline(x: number, y: number, w: number, h: number): Pixel[] {
-  const pixels: Pixel[] = [];
-  for (let dx = 0; dx < w; dx++) {
-    pixels.push([x + dx, y]);           // Top edge
-    pixels.push([x + dx, y + h - 1]);   // Bottom edge
-  }
-  for (let dy = 1; dy < h - 1; dy++) {
-    pixels.push([x, y + dy]);           // Left edge
-    pixels.push([x + w - 1, y + dy]);   // Right edge
-  }
-  return pixels;
-}
-
-// ─── CUTE CHARACTER SPRITES ───
+// ─── SPACE INVADERS STYLE CHARACTER ───
 // 16 wide × 24 tall
-// Head = OUTLINE ONLY, features drawn inside separately
+// Symmetrical, geometric, iconic
 
-// Head outline (hollow) — just the border, no fill
-const HEAD_OUTLINE: Pixel[] = [
-  // Hair top
-  [7, 0], [6, 1], [8, 1], [5, 2], [9, 2],
-  ...rect(4, 3, 8, 1),    // Hair mass top
-  ...rect(3, 4, 10, 1),   // Hair mass
-  // Head sides — left + right edges only
-  [3, 5], [12, 5],
-  [2, 6], [13, 6],
-  [2, 7], [13, 7],  [1, 7], [14, 7], // + ears
-  [2, 8], [13, 8],  [1, 8], [14, 8], // + ears
-  [2, 9], [13, 9],
-  [2, 10], [13, 10],
-  [3, 11], [12, 11],
-  [3, 12], [12, 12],
-  [4, 13], [11, 13],
-  [5, 14], [10, 14],
-];
+// Head: thick square outline with antennae/helmet protrusions
+// Features inside: square eyes, rect nose, wide mouth
 
-// Body outline (hollow) — border only
-const BODY_OUTLINE: Pixel[] = [
-  // Neck
-  [6, 15], [9, 15],
-  // Shoulders
-  [4, 16], [5, 16], [10, 16], [11, 16],
-  // Left side
-  [3, 17], [3, 18],
-  // Right side
-  [12, 17], [12, 18],
-  // Belt
-  [4, 19], [5, 19], [6, 19], [7, 19], [8, 19], [9, 19], [10, 19], [11, 19],
-  // Left arm outline
-  [2, 16], [1, 17], [1, 18], [2, 19],
-  // Right arm outline
-  [13, 16], [14, 17], [14, 18], [13, 19],
-  // Left leg outline
-  [5, 20], [6, 20], [5, 21], [6, 21],
-  [4, 22], [5, 22], [6, 22], [4, 23], [5, 23], [6, 23],
-  // Right leg outline
-  [9, 20], [10, 20], [9, 21], [10, 21],
-  [9, 22], [10, 22], [11, 22], [9, 23], [10, 23], [11, 23],
-];
-
-interface SpriteFrame { head: Pixel[]; body: Pixel[]; accessories: Pixel[]; }
-
-const SPRITES: Record<string, SpriteFrame> = {
+const SPRITES: Record<string, { pixels: Pixel[] }> = {
   happy: {
-    head: [
-      ...HEAD_OUTLINE,
-      // BIG eyes (4px wide × 3px tall) — clearly visible as green blocks inside hollow head
-      ...rect(3, 7, 4, 3),   // Left eye
-      ...rect(9, 7, 4, 3),   // Right eye
-      // Blush cheeks (2px dots)
-      [3, 10], [12, 10],
-      // Wide smile mouth (6px wide, 2px tall)
-      ...rect(5, 11, 6, 2),
+    pixels: [
+      // ── ANTENNAE / HELMET TOP ──
+      ...rect(6, 0, 4, 1),    // Center antenna
+      [3, 1], [4, 1],         // Left antenna
+      [11, 1], [12, 1],       // Right antenna
+      ...rect(2, 2, 12, 1),   // Helmet top bar
+      
+      // ── HEAD (thick square outline, 2px border) ──
+      ...rect(2, 3, 12, 1),   // Top edge
+      ...rect(1, 4, 14, 1),   // Top edge (wider)
+      // Left wall
+      ...rect(1, 5, 2, 8),
+      // Right wall  
+      ...rect(13, 5, 2, 8),
+      // Bottom edge
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      
+      // ── FACE FEATURES (inside hollow head) ──
+      // Eyes (2x2 squares, evenly spaced)
+      ...rect(4, 6, 2, 2),    // Left eye
+      ...rect(10, 6, 2, 2),   // Right eye
+      
+      // Nose (1x2 rectangle, center)
+      ...rect(7, 7, 2, 2),
+      
+      // Mouth (wide horizontal rectangle)
+      ...rect(4, 10, 8, 2),
+      
+      // ── BODY (simple geometric) ──
+      // Neck
+      ...rect(6, 14, 4, 1),
+      
+      // Torso (thick outline)
+      ...rect(4, 15, 8, 1),   // Shoulders
+      ...rect(3, 16, 10, 1),  // Upper body
+      ...rect(3, 17, 10, 1),  // Mid body
+      ...rect(3, 18, 10, 1),  // Lower body
+      ...rect(4, 19, 8, 1),   // Waist
+      
+      // Arms (blocky, sticking out)
+      ...rect(1, 16, 2, 2),   // Left arm
+      ...rect(13, 16, 2, 2),  // Right arm
+      
+      // Target emoji on chest
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
+      
+      // ── LEGS (blocky, geometric) ──
+      ...rect(4, 20, 3, 1),   // Left leg top
+      ...rect(9, 20, 3, 1),   // Right leg top
+      ...rect(4, 21, 3, 1),   // Left leg mid
+      ...rect(9, 21, 3, 1),   // Right leg mid
+      ...rect(3, 22, 4, 1),   // Left foot
+      ...rect(9, 22, 4, 1),   // Right foot
+      ...rect(3, 23, 4, 1),   // Left foot
+      ...rect(9, 23, 4, 1),   // Right foot
     ],
-    body: [...BODY_OUTLINE,
-      // Target on shirt
-      [7, 17], [8, 17],
-      [7, 18], [8, 18],
-    ],
-    accessories: [[0, 15], [15, 15]], // Arms up
   },
+  
   hungry: {
-    head: [
-      ...HEAD_OUTLINE,
-      // Worried big eyes
-      ...rect(3, 7, 4, 3),
-      ...rect(9, 7, 4, 3),
-      // Wavy mouth (small)
-      [6, 11], [7, 11], [8, 11], [9, 11],
-      [6, 12], [9, 12],
+    pixels: [
+      // Antennae
+      ...rect(6, 0, 4, 1),
+      [3, 1], [4, 1], [11, 1], [12, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      // Eyes (wider, worried)
+      ...rect(3, 6, 3, 2),
+      ...rect(10, 6, 3, 2),
+      // Nose
+      ...rect(7, 7, 2, 2),
+      // Mouth (small, worried)
+      ...rect(6, 10, 4, 2),
       // Sweat drop
-      [13, 4], [13, 5],
+      [14, 4], [14, 5],
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      ...rect(1, 16, 2, 2),
+      ...rect(13, 16, 2, 2),
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
     ],
-    body: [...BODY_OUTLINE,
-      [7, 17], [8, 17], [7, 18], [8, 18],
-    ],
-    accessories: [[1, 21]], // Rumble
   },
+  
   sad: {
-    head: [
-      ...HEAD_OUTLINE,
-      // Sad droopy eyes
-      ...rect(3, 8, 4, 2),
-      ...rect(9, 8, 4, 2),
-      // Frown mouth
-      [6, 12], [7, 12], [8, 12], [9, 12],
-      [5, 11], [10, 11],
+    pixels: [
+      // Antennae (droopy)
+      ...rect(6, 0, 4, 1),
+      [3, 1], [4, 1], [11, 1], [12, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      // Eyes (droopy - lower in face)
+      ...rect(4, 8, 2, 2),
+      ...rect(10, 8, 2, 2),
+      // Nose
+      ...rect(7, 8, 2, 1),
+      // Mouth (frown - inverted)
+      [4, 11], [5, 11], [10, 11], [11, 11],
+      [5, 10], [10, 10],
       // Tear
-      [2, 9], [2, 10], [2, 11],
+      [2, 8], [2, 9], [2, 10],
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      ...rect(1, 16, 2, 2),
+      ...rect(13, 16, 2, 2),
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
     ],
-    body: [...BODY_OUTLINE,
-      [7, 17], [8, 17], [7, 18], [8, 18],
-    ],
-    accessories: [],
   },
+  
   tired: {
-    head: [
-      ...HEAD_OUTLINE,
-      // Half-closed eyes (horizontal lines only)
-      [3, 8], [4, 8], [5, 8], [6, 8],
-      [9, 8], [10, 8], [11, 8], [12, 8],
-      // Yawn mouth (small circle)
-      [7, 11], [8, 11],
-      [6, 12], [9, 12],
-      [7, 12], [8, 12],
+    pixels: [
+      // Antennae (floppy)
+      ...rect(6, 0, 4, 1),
+      [3, 1], [4, 1], [11, 1], [12, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      // Eyes (horizontal lines - half closed)
+      [4, 7], [5, 7],
+      [10, 7], [11, 7],
+      // Nose
+      ...rect(7, 8, 2, 1),
+      // Mouth (yawn - small open)
+      ...rect(6, 10, 4, 1),
+      [5, 11], [10, 11],
+      ...rect(6, 11, 4, 1),
       // Zzz
-      [12, 0], [13, 0],
-      [13, 1], [14, 1],
-      [14, 2], [15, 2],
+      [14, 1], [15, 1],
+      [15, 2], [15, 3],
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      ...rect(1, 16, 2, 2),
+      ...rect(13, 16, 2, 2),
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
     ],
-    body: [...BODY_OUTLINE,
-      [7, 17], [8, 17], [7, 18], [8, 18],
-    ],
-    accessories: [],
   },
+  
   working: {
-    head: [
-      ...HEAD_OUTLINE,
-      // Glasses frames (hollow rectangles)
-      ...rectOutline(3, 7, 4, 3),
-      ...rectOutline(9, 7, 4, 3),
-      [7, 8], [8, 8], // Bridge
+    pixels: [
+      // Antennae
+      ...rect(6, 0, 4, 1),
+      [3, 1], [4, 1], [11, 1], [12, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      // Glasses (horizontal bar across eyes)
+      ...rect(3, 6, 10, 1),   // Top of glasses
+      ...rect(3, 8, 10, 1),   // Bottom of glasses
+      [7, 6], [8, 6],        // Bridge top
+      [7, 8], [8, 8],        // Bridge bottom
+      [3, 7], [7, 7], [8, 7], [12, 7], // Side arms
       // Pupils
-      [5, 8], [11, 8],
-      // Straight mouth
-      [6, 11], [7, 11], [8, 11], [9, 11],
-    ],
-    body: [...BODY_OUTLINE,
-      [7, 17], [8, 17], [7, 18], [8, 18],
-    ],
-    accessories: [
+      [5, 7], [10, 7],
+      // Nose
+      ...rect(7, 9, 2, 1),
+      // Mouth (determined line)
+      ...rect(5, 11, 6, 1),
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      ...rect(1, 16, 2, 2),
+      ...rect(13, 16, 2, 2),
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
       // Laptop
       ...rect(14, 17, 2, 1),
       ...rect(14, 18, 2, 2),
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
     ],
   },
+  
   creative: {
-    head: [
-      ...HEAD_OUTLINE,
-      // Huge sparkly eyes (fill bigger area)
-      ...rect(3, 7, 5, 3),
-      ...rect(9, 7, 5, 3),
-      // Star pupils (clear center)
-      [5, 8], [11, 8],
-      // Blush
-      [3, 10], [12, 10],
-      // Big grin
-      [5, 11], [6, 11], [7, 11], [8, 11], [9, 11], [10, 11],
-      [5, 12], [10, 12],
-      [6, 12], [7, 12], [8, 12], [9, 12],
-    ],
-    body: [...BODY_OUTLINE,
-      [7, 17], [8, 17], [7, 18], [8, 18],
-    ],
-    accessories: [
-      [0, 14], [15, 14], // Arms up
-      [0, 2], [1, 3],    // Sparkle left
-      [14, 0], [15, 1],  // Sparkle right
+    pixels: [
+      // Antennae (bigger, excited)
+      ...rect(6, 0, 4, 1),
+      [2, 1], [3, 1], [12, 1], [13, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
+      // Eyes (big, wide open - 3x3)
+      ...rect(3, 6, 3, 3),
+      ...rect(10, 6, 3, 3),
+      // Nose
+      ...rect(7, 8, 2, 1),
+      // Mouth (huge grin - wide rectangle)
+      ...rect(3, 10, 10, 2),
+      // Sparkles
+      [0, 0], [15, 0],
+      [0, 3], [15, 3],
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      // Arms up
+      ...rect(0, 14, 2, 2),
+      ...rect(14, 14, 2, 2),
+      [6, 16], [7, 16], [8, 16], [9, 16],
+      [6, 17], [7, 17], [8, 17], [9, 17],
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
     ],
   },
+  
   dead: {
-    head: [
-      // Skull outline only (hollow)
-      ...rect(5, 0, 6, 1),
-      ...rect(4, 1, 8, 1),
-      ...rect(3, 2, 10, 1),
-      // Sides only
-      [3, 3], [12, 3],
-      [2, 4], [13, 4],
-      [2, 5], [13, 5],
-      [2, 6], [13, 6],
-      [2, 7], [13, 7],
-      [2, 8], [13, 8],
-      [2, 9], [13, 9],
-      [2, 10], [13, 10],
-      [3, 11], [12, 11],
-      [3, 12], [12, 12],
-      [4, 13], [11, 13],
-      [5, 14], [10, 14],
+    pixels: [
+      // Antennae (limp)
+      ...rect(6, 0, 4, 1),
+      [3, 1], [4, 1], [11, 1], [12, 1],
+      ...rect(2, 2, 12, 1),
+      // Head outline
+      ...rect(2, 3, 12, 1),
+      ...rect(1, 4, 14, 1),
+      ...rect(1, 5, 2, 8),
+      ...rect(13, 5, 2, 8),
+      ...rect(1, 12, 14, 1),
+      ...rect(2, 13, 12, 1),
       // X eyes (big, clearly visible)
-      [4, 5], [6, 7],
-      [6, 5], [4, 7],
-      [9, 5], [11, 7],
-      [11, 5], [9, 7],
-      // Flat mouth
-      [6, 10], [7, 10], [8, 10], [9, 10],
+      [4, 6], [5, 7],
+      [5, 6], [4, 7],
+      [10, 6], [11, 7],
+      [11, 6], [10, 7],
+      // Nose
+      ...rect(7, 8, 2, 1),
+      // Mouth (flat line)
+      ...rect(5, 10, 6, 1),
+      // Body
+      ...rect(6, 14, 4, 1),
+      ...rect(4, 15, 8, 1),
+      ...rect(3, 16, 10, 1),
+      ...rect(3, 17, 10, 1),
+      ...rect(3, 18, 10, 1),
+      ...rect(4, 19, 8, 1),
+      ...rect(1, 16, 2, 2),
+      ...rect(13, 16, 2, 2),
+      // Legs
+      ...rect(4, 20, 3, 1), ...rect(9, 20, 3, 1),
+      ...rect(4, 21, 3, 1), ...rect(9, 21, 3, 1),
+      ...rect(3, 22, 4, 1), ...rect(9, 22, 4, 1),
+      ...rect(3, 23, 4, 1), ...rect(9, 23, 4, 1),
+      // Ghost wisps
+      [0, 5], [15, 5],
     ],
-    body: [...BODY_OUTLINE],
-    accessories: [[0, 6], [15, 6]], // Ghost wisps
   },
 };
 
@@ -312,15 +427,14 @@ export function renderDisplay(
   dialogue?: string
 ): string {
   const sprite = SPRITES[state] || SPRITES.happy;
-  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
 
-  // ═══ COL 1: Cute character (left) ═══
+  // ═══ COL 1: Character (left) ═══
   const CHAR_SCALE = 4;
   const CHAR_X = 2;
   const CHAR_Y = 0;
 
-  for (const [sx, sy] of allPixels) {
+  for (const [sx, sy] of sprite.pixels) {
     if (sx < 0 || sy < 0) continue;
     for (let dx = 0; dx < CHAR_SCALE; dx++) {
       for (let dy = 0; dy < CHAR_SCALE; dy++) {
@@ -333,7 +447,7 @@ export function renderDisplay(
     }
   }
 
-  // ═══ COL 2: Middle (dialogue top, buttons bottom) ═══
+  // ═══ COL 2: Middle (mood + dialogue top, buttons bottom) ═══
   const COL2_X = 72;
   const COL3_X = 290;
 
@@ -380,7 +494,6 @@ export function renderDisplay(
     const bx = COL2_X + col * (btnW + btnGapX);
     const by = btnStartY + row * (btnH + btnGapY);
     if (by + btnH > DISPLAY_H) break;
-
     for (let px = bx; px < bx + btnW; px++) {
       onPixels.add(`${px},${by}`);
       onPixels.add(`${px},${by + btnH - 1}`);
@@ -399,14 +512,12 @@ export function renderDisplay(
   const barH = 8;
   const barGap = 3;
   let statY = 2;
-
   const statItems = [
     { label: 'HUNGER', value: stats.hunger },
     { label: 'HAPPY', value: stats.happiness },
     { label: 'ENERGY', value: stats.energy },
     { label: 'CREATE', value: stats.creativity },
   ];
-
   for (const stat of statItems) {
     drawText(onPixels, stat.label, COL3_X, statY, 2);
     statY += 12;
@@ -420,12 +531,11 @@ export function renderDisplay(
 
 export function renderSprite(state: string): string {
   const sprite = SPRITES[state] || SPRITES.happy;
-  const allPixels = [...sprite.head, ...sprite.body, ...sprite.accessories];
   const onPixels = new Set<string>();
   const scale = 4;
   const ox = Math.floor((DISPLAY_W - 16 * scale) / 2);
   const oy = Math.floor((DISPLAY_H - 24 * scale) / 2);
-  for (const [sx, sy] of allPixels) {
+  for (const [sx, sy] of sprite.pixels) {
     if (sx < 0 || sy < 0) continue;
     for (let dx = 0; dx < scale; dx++) {
       for (let dy = 0; dy < scale; dy++) {
